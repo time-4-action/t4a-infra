@@ -1,0 +1,17 @@
+{
+  "name": "t4a-infra",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Infrastructure-as-code for Time 4 Action — single source of truth for infra config.",
+  "scripts": {
+    "auth0:export:prod": "dotenvx run -f auth0/.env.prod -- a0deploy export --format yaml --output_folder auth0/tenant",
+    "auth0:export:dev": "dotenvx run -f auth0/.env.dev -- a0deploy export --format yaml --output_folder auth0/tenant",
+    "auth0:import:dev": "dotenvx run -f auth0/.env.dev -- a0deploy import --input_file auth0/tenant/tenant.yaml",
+    "auth0:import:prod": "dotenvx run -f auth0/.env.prod -- a0deploy import --input_file auth0/tenant/tenant.yaml",
+    "auth0:sync:prod-to-dev": "powershell -NoProfile -ExecutionPolicy Bypass -File auth0/scripts/sync-prod-to-dev.ps1"
+  },
+  "devDependencies": {
+    "@dotenvx/dotenvx": "^1.39.0",
+    "auth0-deploy-cli": "^8.5.1"
+  }
+}

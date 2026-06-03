@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# dotenvx decryption keys — NEVER commit these. This is the master secret
+# that unlocks the encrypted .env files.
+.env.keys
+**/.env.keys
+
+# Plaintext / local env files — NEVER commit.
+.env
+.env.local
+*.local.env
+*.env.local
+
+# Encrypted dotenvx env files ARE committed (values are ciphertext).
+# The broad rules above don't catch these names, but pin them explicitly
+# so they stay tracked.
+!auth0/.env.prod
+!auth0/.env.dev
+!auth0/.env.prod.example
+!auth0/.env.dev.example
+
+# Legacy / accidental plaintext Auth0 configs — guard against commits.
+config-prod.json
+config-dev.json
+*.local.json
+
+# Exported secrets / sensitive Auth0 artifacts
+# (client secrets and users are not exported, but guard against accidents)
+auth0/tenant/**/*.secret.*
+*.secret.json
+*.secret.yaml
+
+# Keep example templates and the tenant placeholder tracked
+!*.example.json
+!auth0/tenant/.gitkeep
