@@ -22,13 +22,14 @@ prod ───────────────▶ dev      dev ────�
 - **Never** edit prod directly — manual prod changes get overwritten on the next
   import.
 
-This principle applies wherever there's a dev/prod split (today: Auth0).
+This principle applies wherever there's a dev/prod split (today: Auth0, MongoDB).
 
 ## Subdirectories
 
 | Directory  | Status            | Holds                                                          |
 | ---------- | ----------------- | -------------------------------------------------------------- |
 | `auth0/`   | **Implemented**   | Auth0 dev/prod tenant config-as-code (`auth0-deploy-cli`)      |
+| `mongo/`   | **Implemented**   | MongoDB data pull prod → dev (`mongodump` / `mongorestore`)    |
 | `nginx/`   | Stub              | Reverse-proxy / web-server config (server blocks, TLS, routing)|
 | `docker/`  | Stub              | Container definitions & orchestration (Dockerfiles, Compose)   |
 | `n8n/`     | Stub              | n8n workflow-automation config                                 |

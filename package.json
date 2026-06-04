@@ -4,11 +4,14 @@
   "private": true,
   "description": "Infrastructure-as-code for Time 4 Action — single source of truth for infra config.",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
+    "env:check": "sh .githooks/check-env-encrypted.sh",
     "auth0:export:prod": "dotenvx run -f auth0/.env.prod -- a0deploy export --format yaml --output_folder auth0/tenant",
     "auth0:export:dev": "dotenvx run -f auth0/.env.dev -- a0deploy export --format yaml --output_folder auth0/tenant",
     "auth0:import:dev": "dotenvx run -f auth0/.env.dev -- a0deploy import --input_file auth0/tenant/tenant.yaml",
     "auth0:import:prod": "dotenvx run -f auth0/.env.prod -- a0deploy import --input_file auth0/tenant/tenant.yaml",
-    "auth0:sync:prod-to-dev": "powershell -NoProfile -ExecutionPolicy Bypass -File auth0/scripts/sync-prod-to-dev.ps1"
+    "auth0:sync:prod-to-dev": "powershell -NoProfile -ExecutionPolicy Bypass -File auth0/scripts/sync-prod-to-dev.ps1",
+    "mongo:sync:prod-to-dev": "dotenvx run -f mongo/.env -- powershell -NoProfile -ExecutionPolicy Bypass -File mongo/scripts/sync-prod-to-dev.ps1"
   },
   "devDependencies": {
     "@dotenvx/dotenvx": "^1.39.0",
