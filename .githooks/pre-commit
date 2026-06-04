@@ -9,4 +9,4 @@
 # are SURE the file is safe).
 
 hook_dir="$(dirname "$0")"
-sh "$hook_dir/check-env-encrypted.sh" --staged
+node "$hook_dir/check-env-encrypted.mjs" --staged

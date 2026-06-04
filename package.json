@@ -5,7 +5,7 @@
   "description": "Infrastructure-as-code for Time 4 Action — single source of truth for infra config.",
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
-    "env:check": "sh .githooks/check-env-encrypted.sh",
+    "env:check": "node .githooks/check-env-encrypted.mjs",
     "auth0:export:prod": "dotenvx run -f auth0/.env.prod -- a0deploy export --format yaml --output_folder auth0/tenant",
     "auth0:export:dev": "dotenvx run -f auth0/.env.dev -- a0deploy export --format yaml --output_folder auth0/tenant",
     "auth0:import:dev": "dotenvx run -f auth0/.env.dev -- a0deploy import --input_file auth0/tenant/tenant.yaml",
