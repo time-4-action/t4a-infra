@@ -19,6 +19,8 @@ node_modules/
 !auth0/.env.dev
 !auth0/.env.prod.example
 !auth0/.env.dev.example
+!mongo/.env
+!mongo/.env.example
 
 # Legacy / accidental plaintext Auth0 configs — guard against commits.
 config-prod.json
