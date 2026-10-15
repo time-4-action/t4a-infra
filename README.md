@@ -68,3 +68,52 @@ files, and the pull (prod → dev) flow:
 ```bash
 npm run auth0:sync:prod-to-dev    # export prod, template URLs, import into dev
 ```
+
+## CI/CD
+
+Two GitHub Actions workflows. Nothing is built or shipped as an image; what
+"deploys" from this repo is the Auth0 tenant config.
+
+### `ci` (`.github/workflows/ci.yml`): every pull request and push to `main`
+
+- `npm run env:check`: every committed dotenvx `.env` is ciphertext (the same
+  check as the pre-commit hook, which a clone without `npm install` skips)
+- no `.env.keys` file is tracked
+- every YAML file under `auth0/tenant/` parses
+- every `.ps1` script parses and has no PSScriptAnalyzer errors
+
+### `auth0-deploy` (`.github/workflows/auth0-deploy.yml`): check, then deploy, then verify
+
+| Trigger | Target |
+| --- | --- |
+| push to `main` touching `auth0/tenant/**` or `auth0/.env.prod` | **prod** |
+| Actions → auth0-deploy → Run workflow | `dev` (default) or `prod` |
+
+`deploy` runs `npm run auth0:import:<target> -- --dry-run --apply`, which prints
+the plan and then applies it. `verify` runs the dry-run again and warns if the
+tenant still differs from `tenant.yaml`. Imports into one tenant run one at a
+time and are never cancelled.
+
+So the promote path (dev → prod) is a pull request: export dev into
+`auth0/tenant/`, open a PR, and merging it imports into prod. The direction stays
+one-way and deliberate; the PR review is the deliberate step.
+
+The MongoDB pull is **not** in CI. It moves prod data, and a GitHub runner
+would need network access to both databases. Run it by hand
+(`npm run mongo:sync:prod-to-dev`).
+
+### GitHub settings (once)
+
+| Where | Name | Value |
+| --- | --- | --- |
+| Environment `production` | secret `DOTENV_PRIVATE_KEY_PROD` | from `auth0/.env.keys` |
+| Environment `development` | secret `DOTENV_PRIVATE_KEY_DEV` | from `auth0/.env.keys` |
+
+Restrict the `production` environment to the `main` branch, and add a required
+reviewer if every prod import should wait for an approval. The Auth0 domain,
+client ID and secret stay in the encrypted `auth0/.env.prod` / `auth0/.env.dev`,
+which have to be committed before the first deploy. The deploy fails loudly if
+they, `tenant.yaml` or the key are missing.
+
+`.github/dependabot.yml` opens at most one grouped PR a month per ecosystem (npm
+minor and patch, GitHub Actions); each one goes through `ci`.
