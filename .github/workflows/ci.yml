@@ -1,0 +1,85 @@
+# check: the repo is safe and parseable.
+#
+# Runs on every pull request and every push to main, and is called by
+# auth0-deploy.yml so nothing is imported into a tenant without a green check.
+# There is no image to build here; the check guards what this repo can break:
+#
+#   - a committed dotenvx .env that is plaintext, or a .env.keys that is tracked
+#   - Auth0 tenant YAML that does not parse (the import would fail on it)
+#   - PowerShell sync scripts that do not parse
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+# A newer push to the same pull request supersedes the running check.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      # Same check as the pre-commit hook, which a clone without
+      # `npm install` (or a commit made with --no-verify) skips.
+      - name: Committed .env files are encrypted
+        run: npm run env:check
+
+      - name: No decryption keys are tracked
+        run: |
+          KEYS=$(git ls-files | grep -E '(^|/)\.env\.keys$' || true)
+          if [ -n "$KEYS" ]; then
+            echo "::error::dotenvx private keys are committed: $KEYS. Remove them from git and rotate the keys."
+            exit 1
+          fi
+
+      - name: Auth0 tenant YAML parses
+        run: |
+          FILES=$(find auth0/tenant -name '*.yaml' -o -name '*.yml')
+          [ -n "$FILES" ] || { echo "no tenant YAML yet"; exit 0; }
+          for f in $FILES; do
+            yq eval '.' "$f" >/dev/null || { echo "::error file=$f::does not parse as YAML"; exit 1; }
+            echo "ok $f"
+          done
+
+      # Errors only: the scripts use Write-Host on purpose.
+      - name: PowerShell scripts parse and lint
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Recurse -Filter *.ps1 | Where-Object { $_.FullName -notmatch 'node_modules' }
+          $bad = 0
+          foreach ($f in $files) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            foreach ($e in $errors) {
+              Write-Output "::error file=$($f.FullName),line=$($e.Extent.StartLineNumber)::$($e.Message)"
+              $bad++
+            }
+          }
+          if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) {
+            Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+          }
+          $issues = $files | ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Severity Error }
+          foreach ($i in $issues) {
+            Write-Output "::error file=$($i.ScriptPath),line=$($i.Line)::$($i.RuleName): $($i.Message)"
+            $bad++
+          }
+          Write-Output "checked $($files.Count) script(s), $bad problem(s)"
+          if ($bad -gt 0) { exit 1 }

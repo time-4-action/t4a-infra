@@ -23,8 +23,9 @@ Each direction is a **deliberate, manual run** — there is **no automated
 two-way sync**, and you **never edit prod directly in the dashboard** (it gets
 overwritten on the next import).
 
-> Today's focus is the **pull** path. The promote path exists as npm scripts
-> (`auth0:export:dev`, `auth0:import:prod`) for when you start shipping changes.
+> Promoting to prod goes through a pull request: merging a change to
+> `auth0/tenant/` into `main` imports it into prod via CI. See
+> [CI/CD](../README.md#cicd).
 
 ## Secrets: dotenvx-encrypted env (committable)
 
@@ -115,10 +116,13 @@ Or just double-click `auth0/scripts/sync-prod-to-dev.cmd` on Windows.
 # 1. Make + verify the change in the DEV tenant.
 npm run auth0:export:dev    # refresh auth0/tenant/tenant.yaml from dev
                             # (keep ##KEYWORD## placeholders intact)
-npm run auth0:import:prod   # import into prod
+# 2. Commit tenant/ on a branch and open a pull request into main.
+# 3. Merge it. The auth0-deploy workflow imports tenant.yaml into prod:
+#    it prints the plan, applies it, then checks nothing is left to change.
 ```
 
-Commit the updated `tenant/` YAML so the repo stays the source of truth.
+Don't run `npm run auth0:import:prod` by hand. Going through a PR keeps the
+repo and prod in step and leaves a record of every prod change.
 
 ## What is NOT exported
 
