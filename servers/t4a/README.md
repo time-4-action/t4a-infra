@@ -119,6 +119,8 @@ Two independent copies, both on Hetzner Storage Box `u578499` (`u578499.your-sto
 
 **Keep copies outside t4a** of `/root/.restic-password` and `PGBACKREST_REPO1_CIPHER_PASS` from `/srv/postgres/.env` (password manager). Without them neither backup can be read.
 
+**Slack.** Both crons run through `t4a-run`, which posts to `#t4a-server` when a backup fails; a summary of every backup follows each morning at 05:00 UTC. See [`../alerts/README.md`](../alerts/README.md).
+
 **Heartbeats.** Both scripts ping a URL when they succeed, read from `/etc/t4a-heartbeat.env`:
 ```
 T4A_BACKUP_HEARTBEAT_URL=https://...   # restic, daily

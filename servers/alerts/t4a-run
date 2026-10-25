@@ -1,0 +1,13 @@
+#!/bin/sh
+# Cron wrapper: t4a-run <name> <command...> appends the command's output to
+# /var/log/<name>.log and posts its last lines to Slack if it fails.
+# Installed as /usr/local/bin/t4a-run on both servers.
+name=$1; shift
+log=/var/log/$name.log
+"$@" >> "$log" 2>&1
+rc=$?
+if [ "$rc" != 0 ]; then
+  /usr/local/bin/t4a-slack ":red_circle: *$(hostname -s)*: \`$name\` failed (exit $rc)
+\`\`\`$(tail -n 15 "$log")\`\`\`"
+fi
+exit "$rc"

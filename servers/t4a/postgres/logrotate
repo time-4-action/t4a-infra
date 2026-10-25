@@ -4,6 +4,7 @@
 /var/lib/docker/volumes/mariadb_mariadb_data/_data/slow.log
 /var/log/pg-backup.log
 /var/log/t4a-backup.log
+/var/log/t4a-daily.log
 {
     # /var/log is group-writable by syslog on Ubuntu.
     su root syslog
