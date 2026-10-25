@@ -1,0 +1,16 @@
+#!/bin/sh
+# pgBackRest base backup of the shared Postgres: full on Sundays, differential
+# otherwise. WAL is archived continuously in between (postgresql.conf).
+# Installed as /usr/local/bin/pg-backup, run by /etc/cron.d/pg-backup. See README.md.
+set -eu
+type=diff
+[ "$(date +%u)" = 7 ] && type=full
+
+cd /srv/postgres
+docker compose exec -T -u postgres postgres pgbackrest --stanza=main --type="$type" backup </dev/null
+docker compose exec -T -u postgres postgres pgbackrest --stanza=main check </dev/null
+
+# Heartbeat: a monitor that alerts when this ping stops arriving (README.md).
+[ -f /etc/t4a-heartbeat.env ] && . /etc/t4a-heartbeat.env
+[ -n "${PG_BACKUP_HEARTBEAT_URL:-}" ] && curl -fsS -m 10 --retry 3 "$PG_BACKUP_HEARTBEAT_URL" >/dev/null
+exit 0

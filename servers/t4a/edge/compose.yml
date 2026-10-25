@@ -1,0 +1,21 @@
+# The server-wide edge proxy, the only thing on :443. Lives in /srv/edge on t4a (README.md).
+# Apps join the `edge` network and route themselves with traefik.* labels.
+name: edge
+
+services:
+  traefik:
+    image: traefik:v3.7.16
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
+      - ./certs:/certs:ro
+    networks:
+      - edge
+
+networks:
+  edge:
+    name: edge
