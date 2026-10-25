@@ -1,9 +1,14 @@
 #!/bin/sh
 # Post one message to the #t4a-server Slack channel: t4a-slack "text" (Slack mrkdwn).
-# Installed as /usr/local/bin/t4a-slack on both servers. The webhook URL is in
-# /etc/t4a-slack.env (SLACK_WEBHOOK_URL=..., mode 600); without it the text goes to stderr.
+# Installed as /usr/local/bin/t4a-slack on both servers. /etc/t4a-slack.env (mode 600) holds
+# SLACK_BOT_TOKEN (the "t4a server" app's xoxb- token) and SLACK_CHANNEL (default t4a-server);
+# without a token the text goes to stderr.
 set -eu
 [ -f /etc/t4a-slack.env ] && . /etc/t4a-slack.env
-if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then echo "t4a-slack (no webhook): $1" >&2; exit 0; fi
-python3 -c 'import json, sys; print(json.dumps({"text": sys.argv[1]}))' "$1" |
-  curl -fsS -m 15 --retry 3 -H 'Content-Type: application/json' --data-binary @- "$SLACK_WEBHOOK_URL" >/dev/null
+if [ -z "${SLACK_BOT_TOKEN:-}" ]; then echo "t4a-slack (no token): $1" >&2; exit 0; fi
+# chat.postMessage answers 200 with "ok": false on errors, so check the body, not the status.
+python3 -c 'import json, sys; print(json.dumps({"channel": sys.argv[1], "text": sys.argv[2]}))' \
+    "${SLACK_CHANNEL:-t4a-server}" "$1" |
+  curl -fsS -m 15 --retry 3 -H "Authorization: Bearer $SLACK_BOT_TOKEN" -H 'Content-Type: application/json; charset=utf-8' \
+    --data-binary @- https://slack.com/api/chat.postMessage |
+  python3 -c 'import json, sys; r = json.load(sys.stdin); r["ok"] or sys.exit("t4a-slack: " + r["error"])'

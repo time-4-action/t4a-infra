@@ -1,6 +1,7 @@
 # Slack alerts (both servers)
 
-Both servers post to one Slack channel, `#t4a-server`, through an incoming webhook:
+Both servers post to one Slack channel, `#t4a-server`, as the Slack app "t4a server"
+(`A0CBTNA1RGD` in the `t4a-talk` workspace, manifest in `slack-app-manifest.json`):
 right away when a backup fails, and with a summary every morning at 05:00 UTC
 (06:00 CET, 07:00 CEST).
 
@@ -33,9 +34,12 @@ call their scripts through `t4a-run`.
 
 Not in git, only on each server: `/etc/t4a-slack.env`, mode 600:
 ```
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+SLACK_BOT_TOKEN=xoxb-...      # api.slack.com/apps/A0CBTNA1RGD → OAuth & Permissions → Bot User OAuth Token
+SLACK_CHANNEL=t4a-server      # optional; any public channel works without inviting the bot (chat:write.public)
 ```
 Without it every script still runs and prints the message to stderr instead.
+The app was created with `slack app install` from a folder holding the manifest; to change
+its scopes, edit the manifest in the app's settings page and reinstall.
 
 ## Install or update
 
