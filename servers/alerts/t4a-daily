@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+# Daily summary to Slack: backups with their age and size, disk, RAM and containers.
+# Installed as /usr/local/bin/t4a-daily on both servers, run by /etc/cron.d/t4a-daily.
+# Which backup checks run depends on the server: t4a has /srv/postgres, t2 has /etc/t4a-backup.env.
+# Python 3.9 (t2 is AlmaLinux 9). A crash or a failed post exits non-zero, so t4a-run alerts.
+import glob, json, os, shutil, socket, subprocess, time
+from datetime import datetime, timezone
+
+MAX_AGE_H = 26          # a nightly backup older than this missed a night
+DISK_MAX_PCT = 80
+T2_RESTIC_TAGS = ["mariadb", "wordpress", "mongodb", "configs"]   # n8n is gone, not expected
+
+lines, problems = [], []
+
+
+def ok(text):
+    lines.append("• " + text)
+
+
+def bad(text):
+    lines.append("• :red_circle: " + text)
+    problems.append(text)
+
+
+def run(cmd, cwd=None):
+    return subprocess.run(cmd, cwd=cwd, shell=isinstance(cmd, str), check=True,
+                          capture_output=True, text=True, stdin=subprocess.DEVNULL).stdout
+
+
+def parse_time(s):
+    # restic: 2026-10-25T04:00:12.123456789+00:00 (nanoseconds); Python 3.9 takes at most microseconds.
+    if "." in s:
+        head, rest = s.split(".", 1)
+        frac = "".join(c for c in rest if c.isdigit())
+        tz = rest[len(frac):] or "+00:00"
+        s = head + "." + frac[:6] + tz
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def age_h(dt):
+    return (datetime.now(timezone.utc) - dt).total_seconds() / 3600
+
+
+def when(dt):
+    return dt.astimezone(timezone.utc).strftime("%b %d %H:%M UTC")
+
+
+def size(n):
+    for unit in ["B", "KB", "MB", "GB"]:
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit in ("B", "KB") else f"{n:.1f} {unit}"
+        n /= 1024
+
+
+def check(label, fn):
+    try:
+        fn()
+    except Exception as e:
+        bad(f"{label}: check failed ({str(e).strip()[:200]})")
+
+
+# --- t4a (Hetzner) ---
+
+def pgbackrest():
+    info = json.loads(run("docker compose exec -T -u postgres postgres pgbackrest --stanza=main --output=json info",
+                          cwd="/srv/postgres"))[0]
+    if info["status"]["code"] != 0:
+        bad(f"pgBackRest: {info['status']['message']}")
+    backups = info["backup"]
+    last = backups[-1]
+    stop = datetime.fromtimestamp(last["timestamp"]["stop"], timezone.utc)
+    oldest = datetime.fromtimestamp(backups[0]["timestamp"]["start"], timezone.utc)
+    text = f"Postgres base backup ({last['type']}): {when(stop)}, {size(last['info']['repository']['delta'])}"
+    bad(text + ", too old") if age_h(stop) > MAX_AGE_H else ok(text)
+
+    archived, failed = run(
+        "docker compose exec -T postgres psql -U postgres -Atc \"SELECT "
+        "coalesce(extract(epoch FROM now() - last_archived_time)::int, -1), "
+        "coalesce(last_failed_time > coalesce(last_archived_time, 'epoch'), false) FROM pg_stat_archiver\"",
+        cwd="/srv/postgres").strip().split("|")
+    if failed == "t":
+        bad("Postgres WAL archiving is failing: point-in-time restore is not current")
+    else:
+        ago = f"last WAL pushed {int(archived) // 60} min ago" if int(archived) >= 0 else "no WAL pushed yet"
+        ok(f"Postgres restore window: any minute from {when(oldest)} to now ({ago})")
+
+
+def restic_t4a():
+    env = dict(os.environ, RESTIC_REPOSITORY="sftp:storagebox:restic/t4a-production",
+               RESTIC_PASSWORD_FILE="/root/.restic-password")
+    snap = json.loads(subprocess.run(["restic", "snapshots", "--host", "t4a", "--latest", "1", "--json"], env=env,
+                                     check=True, capture_output=True, text=True).stdout)[-1]
+    t = parse_time(snap["time"])
+    s = snap.get("summary", {})
+    text = (f"restic (dumps, /srv, WordPress): {when(t)}, {size(s.get('total_bytes_processed', 0))} total, "
+            f"{size(s.get('data_added', 0))} new")
+    bad(text + ", too old") if age_h(t) > MAX_AGE_H else ok(text)
+
+
+def rokomet():
+    files = glob.glob("/srv/rokomet-stats/backups/app-*.db")
+    if not files:
+        return bad("rokomet app.db copy: none found")
+    t = datetime.fromtimestamp(max(os.path.getmtime(f) for f in files), timezone.utc)
+    text = f"rokomet app.db copy: {when(t)}"
+    bad(text + ", too old") if age_h(t) > MAX_AGE_H else ok(text)
+
+
+# --- t2 (T-2) ---
+
+def restic_t2():
+    out = run("bash -c 'set -a; . /etc/t4a-backup.env; restic snapshots --json'")
+    latest = {}
+    for snap in json.loads(out):
+        for tag in snap.get("tags") or []:
+            latest[tag] = snap
+    for tag in T2_RESTIC_TAGS:
+        snap = latest.get(tag)
+        if not snap:
+            bad(f"restic {tag}: no snapshot")
+            continue
+        t = parse_time(snap["time"])
+        text = f"restic {tag}: {when(t)}, {size(snap.get('summary', {}).get('data_added', 0))} new"
+        bad(f"{text}, {age_h(t) / 24:.0f} days old") if age_h(t) > MAX_AGE_H else ok(text)
+
+
+def unit_t2():
+    result = run(["systemctl", "show", "t4a-backup.service", "-p", "Result", "--value"]).strip()
+    if result != "success":
+        bad(f"t4a-backup.service last run: {result}")
+
+
+# --- both ---
+
+def disk():
+    for mount in ["/", "/data"]:
+        if mount == "/data" and not os.path.ismount(mount):
+            continue
+        u = shutil.disk_usage(mount)
+        pct = u.used * 100 // u.total
+        text = f"Disk {mount}: {pct}% used, {size(u.free)} free"
+        bad(text) if pct > DISK_MAX_PCT else ok(text)
+
+
+def memory():
+    m = {}
+    for line in open("/proc/meminfo"):
+        k, v = line.split(":")
+        m[k] = int(v.split()[0]) * 1024
+    avail, total, swap = m["MemAvailable"], m["MemTotal"], m["SwapTotal"] - m["SwapFree"]
+    text = f"RAM: {size(avail)} available of {size(total)}, swap used {size(swap)}"
+    bad(text) if avail < total * 0.1 else ok(text)
+
+
+def containers():
+    rows = [r.split("|", 1) for r in run(["docker", "ps", "--format", "{{.Names}}|{{.Status}}"]).splitlines()]
+    sick = [n for n, s in rows if "unhealthy" in s or "Restarting" in s]
+    if sick:
+        bad("Containers unhealthy or restarting: " + ", ".join(sick))
+    else:
+        ok(f"Containers: {len(rows)} running, none unhealthy")
+
+
+if os.path.exists("/srv/postgres/compose.yml"):
+    name = socket.gethostname() + " (Hetzner)"
+    check("pgBackRest", pgbackrest)
+    check("restic", restic_t4a)
+    check("rokomet", rokomet)
+elif os.path.exists("/etc/t4a-backup.env"):
+    name = socket.gethostname() + " (T-2)"
+    check("t4a-backup.service", unit_t2)
+    check("restic", restic_t2)
+else:
+    name = socket.gethostname()
+check("disk", disk)
+check("memory", memory)
+check("docker", containers)
+
+head = (f":red_circle: *{name}*: {len(problems)} to look at" if problems
+        else f":large_green_circle: *{name}*: all OK")
+message = head + "\n" + "\n".join(lines)
+print(time.strftime("%F %T"), message, sep="\n")
+subprocess.run(["/usr/local/bin/t4a-slack", message], check=True)
+# Problems are already in the summary; exit 0 so t4a-run doesn't post them a second time.

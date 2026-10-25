@@ -1,0 +1,6 @@
+#!/bin/sh
+# Run by t4a-alert@<unit>.service when a unit with OnFailure=t4a-alert@%N.service fails.
+# Installed as /usr/local/bin/t4a-unit-failed on t2 (T-2).
+unit=$1
+/usr/local/bin/t4a-slack ":red_circle: *$(hostname -s)*: \`$unit\` failed
+\`\`\`$(journalctl -u "$unit" -n 15 --no-pager -o cat)\`\`\`"

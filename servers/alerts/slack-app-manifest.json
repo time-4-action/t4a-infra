@@ -1,0 +1,7 @@
+{
+  "_metadata": {"major_version": 2},
+  "display_information": {"name": "t4a server", "description": "Backup alerts and the daily server summary from t4a and T-2"},
+  "features": {"bot_user": {"display_name": "t4a server", "always_online": false}},
+  "oauth_config": {"scopes": {"bot": ["chat:write", "chat:write.public"]}},
+  "settings": {"org_deploy_enabled": false, "socket_mode_enabled": false, "token_rotation_enabled": false}
+}
