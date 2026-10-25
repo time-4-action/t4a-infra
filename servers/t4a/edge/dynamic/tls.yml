@@ -1,0 +1,10 @@
+# Cloudflare Origin Certificates, one folder per Cloudflare zone in /srv/edge/certs. Traefik picks one by SNI.
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+  certificates:
+    - certFile: /certs/etiam.si/origin.pem
+      keyFile: /certs/etiam.si/origin.key
+    - certFile: /certs/jakamarinko.com/origin.pem
+      keyFile: /certs/jakamarinko.com/origin.key

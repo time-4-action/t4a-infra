@@ -1,0 +1,22 @@
+#!/bin/sh
+# Nightly backup of t4a to the Hetzner Storage Box (restic, encrypted). Installed as /usr/local/bin/t4a-backup,
+# run by /etc/cron.d/t4a-backup after rokomet-backup (03:30). See infra/README.md.
+set -eu
+export RESTIC_REPOSITORY=sftp:storagebox:restic/t4a-production
+export RESTIC_PASSWORD_FILE=/root/.restic-password
+dumps=/var/backups/postgres
+
+# Every Postgres database as its own custom-format dump, plus roles.
+mkdir -p "$dumps"; chmod 700 "$dumps"
+cd /srv/postgres
+docker compose exec -T postgres pg_dumpall -U postgres --globals-only > "$dumps/globals.sql"
+for db in $(docker compose exec -T postgres psql -U postgres -Atc "SELECT datname FROM pg_database WHERE NOT datistemplate AND datname <> 'postgres'"); do
+  docker compose exec -T postgres pg_dump -U postgres -Fc "$db" > "$dumps/$db.dump"
+done
+
+# /srv: every app's compose.yml, .env, certs, claude-pool accounts and rokomet's nightly app.db copies.
+restic backup --quiet --host t4a /srv "$dumps" /etc/cron.d /usr/local/bin
+restic forget --quiet --host t4a --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
+
+# Sundays: read back 5 % of the data to catch a broken repo early.
+if [ "$(date +%u)" = 7 ]; then restic check --quiet --read-data-subset=5%; fi
