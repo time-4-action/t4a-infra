@@ -1,0 +1,2 @@
+# t4a -> Hetzner Storage Box, after rokomet-backup (03:30). Output in /var/log/t4a-backup.log.
+0 4 * * * root /usr/local/bin/t4a-backup >> /var/log/t4a-backup.log 2>&1

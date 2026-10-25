@@ -1,0 +1,38 @@
+#!/bin/sh
+# Nightly backup of t4a to the Hetzner Storage Box (restic, encrypted). Installed as /usr/local/bin/t4a-backup,
+# run by /etc/cron.d/t4a-backup after rokomet-backup (03:30). See servers/t4a/README.md in time-4-action/t4a-infra.
+set -eu
+export RESTIC_REPOSITORY=sftp:storagebox:restic/t4a-production
+export RESTIC_PASSWORD_FILE=/root/.restic-password
+dumps=/var/backups/postgres
+
+# Every Postgres database as its own custom-format dump, plus roles.
+mkdir -p "$dumps"; chmod 700 "$dumps"
+cd /srv/postgres
+docker compose exec -T postgres pg_dumpall -U postgres --globals-only > "$dumps/globals.sql"
+for db in $(docker compose exec -T postgres psql -U postgres -Atc "SELECT datname FROM pg_database WHERE NOT datistemplate AND datname <> 'postgres'"); do
+  docker compose exec -T postgres pg_dump -U postgres -Fc "$db" > "$dumps/$db.dump"
+done
+
+# Every MariaDB database (the WordPress sites) as its own dump, plus users and grants.
+mydumps=/var/backups/mariadb
+mkdir -p "$mydumps"; chmod 700 "$mydumps"
+cd /srv/mariadb
+my() { docker compose exec -T mariadb sh -c "$1" </dev/null; }
+# utf8mb3: in 11.4 the users query fails with "Illegal mix of collations" under utf8mb4.
+my 'mariadb-dump -uroot -p"$MARIADB_ROOT_PASSWORD" --default-character-set=utf8mb3 --system=users' > "$mydumps/users.sql"
+for db in $(my 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -N -e "SHOW DATABASES" | grep -vxE "information_schema|mysql|performance_schema|sys"'); do
+  my "mariadb-dump -uroot -p\"\$MARIADB_ROOT_PASSWORD\" --single-transaction --routines --events --databases $db" > "$mydumps/$db.sql"
+done
+
+# /srv: every app's compose.yml, .env, certs, WordPress files, claude-pool accounts and rokomet's nightly app.db copies.
+restic backup --quiet --host t4a /srv "$dumps" "$mydumps" /etc/cron.d /usr/local/bin
+restic forget --quiet --host t4a --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
+
+# Sundays: read back 5 % of the data to catch a broken repo early.
+if [ "$(date +%u)" = 7 ]; then restic check --quiet --read-data-subset=5%; fi
+
+# Heartbeat: a monitor that alerts when this ping stops arriving (README.md).
+[ -f /etc/t4a-heartbeat.env ] && . /etc/t4a-heartbeat.env
+[ -n "${T4A_BACKUP_HEARTBEAT_URL:-}" ] && curl -fsS -m 10 --retry 3 "$T4A_BACKUP_HEARTBEAT_URL" >/dev/null
+exit 0

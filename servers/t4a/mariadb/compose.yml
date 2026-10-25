@@ -1,0 +1,38 @@
+# MariaDB for the WordPress sites on t4a, and nothing else: apps use Postgres. Lives in /srv/mariadb
+# (servers/t4a/README.md in time-4-action/t4a-infra). Not published on any port: sites reach it as
+# `mariadb:3306` over the `mariadb` network.
+name: mariadb
+
+services:
+  mariadb:
+    image: mariadb:11.4.13
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Runs mariadb-upgrade after an image bump, so a minor upgrade is a tag change.
+      MARIADB_AUTO_UPGRADE: "1"
+      # root only from inside this container; sites get their own user (new-site.sh).
+      MARIADB_ROOT_HOST: localhost
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./my.cnf:/etc/mysql/conf.d/zz-t4a.cnf:ro
+    networks:
+      - mariadb
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # A clean InnoDB shutdown needs more than Docker's default 10 s.
+    stop_grace_period: 2m
+    logging:
+      options:
+        max-size: 10m
+        max-file: "5"
+
+networks:
+  mariadb:
+    name: mariadb
+
+volumes:
+  mariadb_data:
