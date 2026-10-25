@@ -15,7 +15,7 @@
     "mongo:decrypt": "dotenvx decrypt -f mongo/.env"
   },
   "devDependencies": {
-    "@dotenvx/dotenvx": "^1.39.0",
-    "auth0-deploy-cli": "^8.5.1"
+    "@dotenvx/dotenvx": "^1.75.1",
+    "auth0-deploy-cli": "^8.45.0"
   }
 }
