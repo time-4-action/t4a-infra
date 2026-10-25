@@ -10,5 +10,9 @@ docker compose exec -T postgres psql -U postgres -v ON_ERROR_STOP=1 <<EOF
 CREATE ROLE "$name" LOGIN PASSWORD '$pass' CONNECTION LIMIT 30;
 CREATE DATABASE "$name" OWNER "$name";
 REVOKE ALL ON DATABASE "$name" FROM PUBLIC;
+-- PgHero (/srv/pghero) reads statistics only; add the database to its pghero.yml too.
+GRANT CONNECT ON DATABASE "$name" TO pghero;
+\\c "$name"
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 EOF
 echo "DATABASE_URL=postgres://$name:$pass@postgres:5432/$name"

@@ -1,0 +1,27 @@
+# PgHero: slow queries, table and index sizes, connections of the shared Postgres. Lives in /srv/pghero on t4a
+# (servers/t4a/README.md). Connects as the read-only role `pghero` (pg_monitor); the password is in .env.
+name: pghero
+
+services:
+  pghero:
+    image: ankane/pghero:v4.1.0
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./pghero.yml:/app/config/pghero.yml:ro
+    mem_limit: 384m
+    networks:
+      - edge
+      - db
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      - traefik.http.routers.pghero.rule=Host(`pghero.time-4-action.com`)
+      - traefik.http.routers.pghero.middlewares=ops-auth@file
+      - traefik.http.services.pghero.loadbalancer.server.port=8080
+
+networks:
+  edge:
+    external: true
+  db:
+    external: true

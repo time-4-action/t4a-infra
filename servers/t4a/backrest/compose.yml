@@ -1,0 +1,37 @@
+# Backrest: a web UI over the restic repo restic/t4a-production. Lives in /srv/backrest on t4a (servers/t4a/README.md).
+# Browse snapshots and restore single files. It runs no backups, prunes or checks of its own: t4a-backup does those.
+name: backrest
+
+services:
+  backrest:
+    image: garethgeorge/backrest:v1.14.1-alpine
+    restart: unless-stopped
+    environment:
+      BACKREST_CONFIG: /config/config.json
+      BACKREST_DATA: /data
+      XDG_CACHE_HOME: /cache
+      TZ: Europe/Ljubljana
+    volumes:
+      # config.json is in git; Backrest rewrites it when settings change in the UI.
+      - ./config:/config
+      - backrest_data:/data
+      - backrest_cache:/cache
+      # The same Storage Box key, ssh config and password the nightly backup uses.
+      - /root/.ssh:/root/.ssh:ro
+      - /root/.restic-password:/run/secrets/restic-password:ro
+    mem_limit: 512m
+    networks:
+      - edge
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.backrest.rule=Host(`backrest.time-4-action.com`)
+      - traefik.http.routers.backrest.middlewares=ops-auth@file
+      - traefik.http.services.backrest.loadbalancer.server.port=9898
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  backrest_data:
+  backrest_cache:

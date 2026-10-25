@@ -7,7 +7,7 @@
 Runs jakamarinko (`/srv/jakamarinko`), rokomet-stats (`/srv/rokomet-stats`) and
 ld-docs (`/srv/ld-docs`). Each app deploys itself from its own repo; this folder
 holds only the server-wide parts in `/srv/edge`, `/srv/postgres`, `/srv/mariadb`,
-`/srv/wordpress` and the backups.
+`/srv/wordpress`, the ops tools `/srv/pghero` and `/srv/backrest`, and the backups.
 None of it is deployed by CI: change it here, open a pull request, then copy it
 to the server by hand as described in each section.
 
@@ -102,6 +102,39 @@ the database is in the nightly MariaDB dump.
 
 Tested 2026-10-25 with a throwaway site: install, a published post served with 200, routing
 through Traefik, backup to the Storage Box and a restore of its database. Then removed.
+
+## Ops tools (`pghero/` → `/srv/pghero`, `backrest/` → `/srv/backrest`)
+
+Two web UIs behind Traefik, both behind one basic-auth login (`ops-auth` middleware in
+`/srv/edge/dynamic/ops-auth.yml`, not in git; user and password in `/root/ops-login`).
+Cloudflare: proxied A records `pghero` and `backrest` in `time-4-action.com` → `77.42.42.60`.
+
+- **PgHero**, https://pghero.time-4-action.com: slow queries (`pg_stat_statements`), table and
+  index sizes, unused and duplicate indexes, connections, per database. Connects as the role
+  `pghero` (`pg_monitor`, 5 connections, can't read table data; EXPLAIN is off); its password
+  is `PGHERO_DB_PASSWORD` in `/srv/pghero/.env`. Don't name it `PGHERO_PASSWORD`: PgHero
+  reads that as its own login. A new database: `new-app-db.sh` already grants `pghero`
+  CONNECT and adds `pg_stat_statements`; add an entry to `pghero.yml`, then
+  `scp pghero/pghero.yml t4a:/srv/pghero/ && ssh t4a 'cd /srv/pghero && docker compose restart'`.
+- **Backrest**, https://backrest.time-4-action.com: the restic repo `restic/t4a-production`.
+  Browse snapshots, see sizes, restore or download single files. It uses root's Storage
+  Box key (`/root/.ssh`) and `/root/.restic-password`, mounted read-only. It runs no
+  backups, prunes or checks: `t4a-backup` owns the repo and its retention, so don't use
+  Backrest's forget or prune buttons. `restic/t4a-t2` is deliberately not added.
+  Backrest's own login is off (`auth.disabled`); the basic auth in front is the login.
+  Backrest rewrites `config/config.json` when settings change in the UI; copy it back
+  into git if you change anything there.
+
+Deploy or update:
+```
+scp pghero/compose.yml pghero/pghero.yml t4a:/srv/pghero/
+scp backrest/compose.yml t4a:/srv/backrest/ && scp backrest/config.json t4a:/srv/backrest/config/
+ssh t4a 'cd /srv/pghero && docker compose up -d; cd /srv/backrest && docker compose up -d'
+```
+Set up once on 2026-10-25: the `pghero` role (`CREATE ROLE pghero LOGIN PASSWORD '...'
+CONNECTION LIMIT 5; GRANT pg_monitor TO pghero;` plus `GRANT CONNECT` and
+`pg_stat_statements` per database), `/srv/pghero/.env`, `ops-auth.yml` (hash from
+`openssl passwd -apr1`), and the `time-4-action.com` origin cert copied from t2.
 
 ## Backups
 

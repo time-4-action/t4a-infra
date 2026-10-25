@@ -8,3 +8,5 @@ tls:
       keyFile: /certs/etiam.si/origin.key
     - certFile: /certs/jakamarinko.com/origin.pem
       keyFile: /certs/jakamarinko.com/origin.key
+    - certFile: /certs/time-4-action.com/origin.pem
+      keyFile: /certs/time-4-action.com/origin.key
