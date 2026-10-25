@@ -1,6 +1,7 @@
 # Installed as /etc/logrotate.d/t4a-postgres. pgBackRest appends to its logs forever
-# (archive-push runs every few minutes), and so do the backup cron logs.
+# (archive-push runs every few minutes), and so do MariaDB's slow log and the backup cron logs.
 /var/lib/docker/volumes/postgres_pg_data/_data/pgbackrest/log/*.log
+/var/lib/docker/volumes/mariadb_mariadb_data/_data/slow.log
 /var/log/pg-backup.log
 /var/log/t4a-backup.log
 {

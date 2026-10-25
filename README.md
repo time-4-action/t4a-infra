@@ -29,7 +29,7 @@ This principle applies wherever there's a dev/prod split (today: Auth0).
 | Directory  | Status            | Holds                                                          |
 | ---------- | ----------------- | -------------------------------------------------------------- |
 | `auth0/`   | **Implemented**   | Auth0 dev/prod tenant config-as-code (`auth0-deploy-cli`)      |
-| `servers/t4a/` | **Implemented** | Hetzner server `t4a`: Traefik edge, shared Postgres with point-in-time backups, restic ([README](./servers/t4a/README.md)) |
+| `servers/t4a/` | **Implemented** | Hetzner server `t4a`: Traefik edge, shared Postgres with point-in-time backups, MariaDB + WordPress sites, restic ([README](./servers/t4a/README.md)) |
 | `nginx/`   | Stub              | Reverse-proxy / web-server config (server blocks, TLS, routing)|
 | `docker/`  | Stub              | Container definitions & orchestration (Dockerfiles, Compose)   |
 | `n8n/`     | Stub              | n8n workflow-automation config                                 |

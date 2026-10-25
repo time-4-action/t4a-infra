@@ -6,7 +6,8 @@
 
 Runs jakamarinko (`/srv/jakamarinko`), rokomet-stats (`/srv/rokomet-stats`) and
 ld-docs (`/srv/ld-docs`). Each app deploys itself from its own repo; this folder
-holds only the server-wide parts in `/srv/edge`, `/srv/postgres` and the backups.
+holds only the server-wide parts in `/srv/edge`, `/srv/postgres`, `/srv/mariadb`,
+`/srv/wordpress` and the backups.
 None of it is deployed by CI: change it here, open a pull request, then copy it
 to the server by hand as described in each section.
 
@@ -59,6 +60,49 @@ owned by uid 70, mode 600).
 - Minor upgrade (18.x): bump the tag in `Dockerfile` and `compose.yml` (`image:`), then the commands above. Major upgrade (19): dump and restore into a new volume, or `pg_upgrade`; plan it, it's not a tag bump. A new major also needs a new pgBackRest stanza upgrade (`pgbackrest --stanza=main stanza-upgrade`).
 - `stop_grace_period: 2m`: Docker would otherwise SIGKILL Postgres after 10 s, forcing crash recovery on the next start.
 
+## MariaDB (`mariadb/` → `/srv/mariadb`)
+
+MariaDB 11.4 LTS for the WordPress sites only; apps use Postgres. No published port:
+sites join the external `mariadb` network and connect to `mariadb:3306`. `root` works only
+from inside the container (`MARIADB_ROOT_HOST=localhost`); its password is in
+`/srv/mariadb/.env` (mode 600). Each site has its own database and user, limited to 20
+connections.
+
+- `my.cnf`: 256 MB buffer pool, 60 connections, utf8mb4, performance_schema off, slow
+  queries over 1 s in `slow.log` inside the volume (rotated by `postgres/logrotate`).
+  Don't set `collation-server`: in 11.4 a non-default one breaks the users dump in the backup.
+- SQL shell: `ssh -t t4a 'cd /srv/mariadb && docker compose exec mariadb sh -c "mariadb -uroot -p\$MARIADB_ROOT_PASSWORD"'`
+- Change the config or bump the minor version: `scp mariadb/* t4a:/srv/mariadb/ && ssh t4a 'cd /srv/mariadb && docker compose up -d'`
+  (restarts MariaDB, a few seconds; `MARIADB_AUTO_UPGRADE` runs `mariadb-upgrade`).
+  A major upgrade (12.x): dump and restore into a new volume.
+
+## WordPress (`wordpress/` → `/srv/wordpress`)
+
+Each site is its own container (`wordpress:<version>-php8.5-apache`, 512 MB memory limit)
+on the `edge` and `mariadb` networks, routed by Traefik. Its files live in
+`/srv/wordpress/<site>/html`, so the nightly restic backup of `/srv` covers them;
+the database is in the nightly MariaDB dump.
+
+- New site: `ssh t4a sh /srv/wordpress/new-site.sh <site> <domain> [<domain> ...]`. It creates
+  database and user `wp_<site>`, `/srv/wordpress/<site>/` (compose.yml, php.ini, .env, html/)
+  and starts the container. Then in Cloudflare: an A record for each domain → `77.42.42.60`,
+  proxied; a new zone also needs its origin certificate (Edge proxy above). Open
+  `https://<domain>/wp-admin/install.php` to finish.
+- PHP version per site: `WP_IMAGE_TAG` in the site's `.env` (default `7.1.3-php8.5-apache`),
+  then `docker compose up -d` in its folder. The WordPress version in the tag only matters on
+  the first start; afterwards core, themes and plugins update from wp-admin.
+- PHP limits per site in its `php.ini` (64 MB uploads, 256 MB memory).
+- wp-config.php written on first start reads the database settings from `.env`, forces HTTPS
+  behind the proxy and sets `DISALLOW_FILE_EDIT`.
+- WP-CLI: `docker run --rm --network mariadb --user 33:33 --env-file /srv/wordpress/<site>/.env -e WORDPRESS_DB_HOST=mariadb -v /srv/wordpress/<site>/html:/var/www/html wordpress:cli-2.12.0-php8.5 wp <command>`
+- Moving an existing site in: copy its files into `html/`, import its dump into `wp_<site>`
+  (`docker compose exec -T mariadb sh -c 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" wp_<site>' < dump.sql`),
+  and point its own `wp-config.php` at `DB_HOST mariadb` with the user and password from `.env`.
+- Remove a site: `docker compose down` in its folder, delete the folder, `DROP DATABASE wp_<site>; DROP USER wp_<site>@'%';`.
+
+Tested 2026-10-25 with a throwaway site: install, a published post served with 200, routing
+through Traefik, backup to the Storage Box and a restore of its database. Then removed.
+
 ## Backups
 
 Two independent copies, both on Hetzner Storage Box `u578499` (`u578499.your-storagebox.de`, port 23).
@@ -71,7 +115,7 @@ Two independent copies, both on Hetzner Storage Box `u578499` (`u578499.your-sto
 - State: `ssh t4a 'cd /srv/postgres && docker compose exec -u postgres postgres pgbackrest --stanza=main info'`
 
 **2. restic, nightly dumps and files** (repo `restic/t4a-production`, `/root/.restic-password`)
-- `/etc/cron.d/t4a-backup` runs `t4a-backup` at 04:00 (after rokomet's 03:30 `app.db` copy): `pg_dump` of every database to `/var/backups/postgres`, then restic of those dumps, `/srv` (every `.env`, compose file, cert, `pgbackrest-ssh`), `/etc/cron.d` and `/usr/local/bin`. Keeps 7 daily, 4 weekly, 6 monthly; Sundays reads back 5 %. Log: `/var/log/t4a-backup.log`.
+- `/etc/cron.d/t4a-backup` runs `t4a-backup` at 04:00 (after rokomet's 03:30 `app.db` copy): `pg_dump` of every database to `/var/backups/postgres`, `mariadb-dump` of every MariaDB database plus users and grants to `/var/backups/mariadb`, then restic of those dumps, `/srv` (every `.env`, compose file, cert, `pgbackrest-ssh`, WordPress files), `/etc/cron.d` and `/usr/local/bin`. Keeps 7 daily, 4 weekly, 6 monthly; Sundays reads back 5 %. Log: `/var/log/t4a-backup.log`.
 
 **Keep copies outside t4a** of `/root/.restic-password` and `PGBACKREST_REPO1_CIPHER_PASS` from `/srv/postgres/.env` (password manager). Without them neither backup can be read.
 
