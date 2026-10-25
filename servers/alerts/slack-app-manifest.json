@@ -1,7 +1,18 @@
 {
   "_metadata": {"major_version": 2},
-  "display_information": {"name": "t4a server", "description": "Backup alerts and the daily server summary from t4a and T-2"},
-  "features": {"bot_user": {"display_name": "t4a server", "always_online": false}},
-  "oauth_config": {"scopes": {"bot": ["chat:write", "chat:write.public"]}},
+  "display_information": {"name": "t4a server", "description": "Backup alerts, the daily server summary, and /maintenance for banners and down pages"},
+  "features": {
+    "bot_user": {"display_name": "t4a server", "always_online": false},
+    "slash_commands": [
+      {
+        "command": "/maintenance",
+        "url": "https://maintenance.time-4-action.com/slack/command",
+        "description": "Banner in every app, or a down page for chosen sites",
+        "usage_hint": "announce tomorrow 22:00 30m <message> | down <site...> <message> | end | status",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {"scopes": {"bot": ["chat:write", "chat:write.public", "commands"]}},
   "settings": {"org_deploy_enabled": false, "socket_mode_enabled": false, "token_rotation_enabled": false}
 }
