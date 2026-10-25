@@ -41,7 +41,7 @@ Without it every script still runs and prints the message to stderr instead.
 The app was created with `slack app install` from a folder holding the manifest; to change
 its scopes, edit the manifest in the app's settings page and reinstall.
 The same app has the `/maintenance` slash command (scope `commands`), served by
-`/srv/maintenance` on t4a (`servers/t4a/README.md`).
+`/srv/maintenance` on t4a, from the repo time-4-action/t4a-maintenance.
 
 ## Install or update
 
