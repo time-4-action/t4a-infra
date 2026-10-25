@@ -1,0 +1,112 @@
+# check -> deploy -> verify for the Auth0 tenant config.
+#
+#   push to main   when auth0/tenant/** or auth0/.env.prod changed: import
+#                  auth0/tenant/tenant.yaml into the PROD tenant. A merged pull
+#                  request is the promote step (dev -> prod); nobody runs
+#                  `auth0:import:prod` by hand any more.
+#   manual run     Actions -> auth0-deploy -> Run workflow, pick `dev` or
+#                  `prod`. `dev` is the pull path (prod -> dev) once tenant.yaml
+#                  holds an export of prod with ##KEYWORD## placeholders.
+#
+# `deploy` prints the plan (a0deploy --dry-run) and applies it in one run.
+# `verify` runs the dry-run again: after a good import it should find nothing
+# left to change. AUTH0_ALLOW_DELETE stays "false" in auth0/.env.prod, so an
+# import never deletes prod state.
+#
+# Only the dotenvx private key is a GitHub secret; everything else is read from
+# the encrypted auth0/.env.<target> in the repo. See README.md#cicd.
+name: auth0-deploy
+on:
+  push:
+    branches: [main]
+    paths:
+      - auth0/tenant/**
+      - auth0/.env.prod
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Tenant to import auth0/tenant/tenant.yaml into
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+permissions:
+  contents: read
+
+env:
+  # push to main always means prod.
+  TARGET: ${{ github.event_name == 'push' && 'prod' || inputs.target }}
+
+jobs:
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-24.04
+    # Each environment holds its own DOTENV_PRIVATE_KEY_<TARGET> secret.
+    # Restrict "production" to the main branch in the repository settings, and
+    # add a required reviewer there to approve every prod import.
+    environment: ${{ (github.event_name == 'push' || inputs.target == 'prod') && 'production' || 'development' }}
+    # Imports into the same tenant never overlap and are never cancelled, so an
+    # older tenant.yaml can never land over a newer one.
+    concurrency:
+      group: auth0-${{ github.event_name == 'push' && 'prod' || inputs.target }}
+      cancel-in-progress: false
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      # dotenvx would otherwise run a0deploy with no credentials at all.
+      - name: Check inputs
+        env:
+          KEY: ${{ secrets.DOTENV_PRIVATE_KEY_PROD }}${{ secrets.DOTENV_PRIVATE_KEY_DEV }}
+        run: |
+          [ -f auth0/tenant/tenant.yaml ] || { echo "::error::auth0/tenant/tenant.yaml does not exist; export a tenant and commit it first"; exit 1; }
+          [ -f "auth0/.env.$TARGET" ] || { echo "::error::auth0/.env.$TARGET is not committed; create it from auth0/.env.$TARGET.example and encrypt it"; exit 1; }
+          [ -n "$KEY" ] || { echo "::error::no DOTENV_PRIVATE_KEY_* secret in this environment"; exit 1; }
+
+      - name: Import (plan, then apply)
+        env:
+          DOTENV_PRIVATE_KEY_PROD: ${{ secrets.DOTENV_PRIVATE_KEY_PROD }}
+          DOTENV_PRIVATE_KEY_DEV: ${{ secrets.DOTENV_PRIVATE_KEY_DEV }}
+        run: npm run "auth0:import:$TARGET" -- --dry-run --apply
+
+  # A second dry-run against the tenant just imported. Anything it still wants
+  # to change is drift the import did not converge (or a value Auth0 rewrites
+  # on save). Reported as a warning, not a failure, until a first real run
+  # shows which of those are expected.
+  verify:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    environment: ${{ (github.event_name == 'push' || inputs.target == 'prod') && 'production' || 'development' }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Tenant matches tenant.yaml
+        env:
+          DOTENV_PRIVATE_KEY_PROD: ${{ secrets.DOTENV_PRIVATE_KEY_PROD }}
+          DOTENV_PRIVATE_KEY_DEV: ${{ secrets.DOTENV_PRIVATE_KEY_DEV }}
+        run: |
+          set -o pipefail
+          npm run "auth0:import:$TARGET" -- --dry-run 2>&1 | tee plan.txt
+          if grep -q 'No changes detected' plan.txt; then
+            echo "$TARGET tenant matches auth0/tenant/tenant.yaml"
+          else
+            echo "::warning::the $TARGET tenant still differs from auth0/tenant/tenant.yaml after the import; see the plan above"
+          fi
