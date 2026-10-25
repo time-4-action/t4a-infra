@@ -106,7 +106,9 @@ through Traefik, backup to the Storage Box and a restore of its database. Then r
 ## Ops tools (`pghero/` → `/srv/pghero`, `backrest/` → `/srv/backrest`)
 
 Two web UIs behind Traefik, both behind one basic-auth login (`ops-auth` middleware in
-`/srv/edge/dynamic/ops-auth.yml`, not in git; user and password in `/root/ops-login`).
+`/srv/edge/dynamic/ops-auth.yml`, not in git; user and password in `/root/ops-login`). The same login
+guards https://maintenance.time-4-action.com/admin; `headerField: X-Forwarded-User` in that file passes
+the user name on, and the maintenance service relies on it.
 Cloudflare: proxied A records `pghero` and `backrest` in `time-4-action.com` → `77.42.42.60`.
 
 - **PgHero**, https://pghero.time-4-action.com: slow queries (`pg_stat_statements`), table and
@@ -136,33 +138,13 @@ CONNECTION LIMIT 5; GRANT pg_monitor TO pghero;` plus `GRANT CONNECT` and
 `pg_stat_statements` per database), `/srv/pghero/.env`, `ops-auth.yml` (hash from
 `openssl passwd -apr1`), and the `time-4-action.com` origin cert copied from t2.
 
-## Maintenance (`maintenance/` → `/srv/maintenance`)
+## Maintenance (`/srv/maintenance`, its own repo)
 
-The `/maintenance` command of the Slack app "t4a server" (`servers/alerts/`), at
-https://maintenance.time-4-action.com. One file of Node, no dependencies, no build: `server.mjs`
-runs in the stock `node` image. Only Slack users in `ALLOWED_USERS` may run it.
-
-| Command | What happens |
-|---|---|
-| `/maintenance announce tomorrow 22:00 30m Moving the database` | Every app shows a banner from now until the window ends. Date `today`, `tomorrow` or `2026-11-02`, Ljubljana time. |
-| `/maintenance down jakamarinko.com api.time-4-action.com Moving servers` | Those sites answer 503 with a "back soon" page, and the banner shows everywhere. |
-| `/maintenance end` | Banner and down page off. |
-| `/maintenance status` | What is on, with a bypass link per site (a cookie for 24 h that gets past the down page, to test before `end`). |
-
-- Banner: apps fetch `https://maintenance.time-4-action.com/banner.json` (CORS open, cached 60 s):
-  `{"active": true, "level": "planned"|"now"|"down", "text": "..."}` or `{"active": false}`. Show `text`
-  when `active`; nothing else to format.
-- Down mode: the service writes a router into `/srv/edge/dynamic/maintenance.yml` (owned by uid 1000,
-  bind-mounted), priority 100000, for the named hosts unless the request has the bypass cookie.
-  Traefik picks it up within a second. It only covers sites that reach this Traefik: a site still
-  on t2 gets the page once its DNS points at t4a.
-- State in `data/state.json`; deleting it and restarting clears everything.
-- Not in git: `/srv/maintenance/.env` (mode 600): `SLACK_SIGNING_SECRET` (api.slack.com/apps/A0CBTNA1RGD
-  → Basic Information) and `ALLOWED_USERS=U0CBHKJT3D5,...` (Slack member IDs; a refused user is told theirs).
-- Deploy: `scp maintenance/compose.yml maintenance/server.mjs maintenance/down.html t4a:/srv/maintenance/ && ssh t4a 'cd /srv/maintenance && docker compose up -d --force-recreate'`.
-  Set up once: `mkdir -p /srv/maintenance/data && chown 1000:1000 /srv/maintenance/data`,
-  `touch /srv/edge/dynamic/maintenance.yml && chown 1000:1000 /srv/edge/dynamic/maintenance.yml`,
-  proxied A record `maintenance` → `77.42.42.60`.
+Maintenance banners and down pages (web page `/admin` and the `/maintenance` Slack command) live in
+[time-4-action/t4a-maintenance](https://github.com/time-4-action/t4a-maintenance), which
+deploys itself to `/srv/maintenance` as `deploy` on merge; its README has the commands and setup.
+What it needs from this server: the `edge` network, `/srv/edge/dynamic/maintenance.yml` (owned by
+`deploy`, where it writes the down-mode router), and the proxied A record `maintenance` → `77.42.42.60`.
 
 ## Backups
 
