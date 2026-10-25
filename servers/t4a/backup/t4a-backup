@@ -1,6 +1,6 @@
 #!/bin/sh
 # Nightly backup of t4a to the Hetzner Storage Box (restic, encrypted). Installed as /usr/local/bin/t4a-backup,
-# run by /etc/cron.d/t4a-backup after rokomet-backup (03:30). See infra/README.md.
+# run by /etc/cron.d/t4a-backup after rokomet-backup (03:30). See servers/t4a/README.md in time-4-action/t4a-infra.
 set -eu
 export RESTIC_REPOSITORY=sftp:storagebox:restic/t4a-production
 export RESTIC_PASSWORD_FILE=/root/.restic-password
@@ -20,3 +20,8 @@ restic forget --quiet --host t4a --keep-daily 7 --keep-weekly 4 --keep-monthly 6
 
 # Sundays: read back 5 % of the data to catch a broken repo early.
 if [ "$(date +%u)" = 7 ]; then restic check --quiet --read-data-subset=5%; fi
+
+# Heartbeat: a monitor that alerts when this ping stops arriving (README.md).
+[ -f /etc/t4a-heartbeat.env ] && . /etc/t4a-heartbeat.env
+[ -n "${T4A_BACKUP_HEARTBEAT_URL:-}" ] && curl -fsS -m 10 --retry 3 "$T4A_BACKUP_HEARTBEAT_URL" >/dev/null
+exit 0

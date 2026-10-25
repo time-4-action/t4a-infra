@@ -1,0 +1,2 @@
+# Shared Postgres base backup to the Storage Box, before rokomet (03:30) and restic (04:00). Log: /var/log/pg-backup.log
+30 2 * * * root /usr/local/bin/pg-backup >> /var/log/pg-backup.log 2>&1
