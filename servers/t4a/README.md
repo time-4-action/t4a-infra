@@ -106,7 +106,9 @@ through Traefik, backup to the Storage Box and a restore of its database. Then r
 ## Ops tools (`pghero/` → `/srv/pghero`, `backrest/` → `/srv/backrest`)
 
 Two web UIs behind Traefik, both behind one basic-auth login (`ops-auth` middleware in
-`/srv/edge/dynamic/ops-auth.yml`, not in git; user and password in `/root/ops-login`).
+`/srv/edge/dynamic/ops-auth.yml`, not in git; user and password in `/root/ops-login`). The same login
+guards https://maintenance.time-4-action.com/admin; `headerField: X-Forwarded-User` in that file passes
+the user name on, and the maintenance service relies on it.
 Cloudflare: proxied A records `pghero` and `backrest` in `time-4-action.com` → `77.42.42.60`.
 
 - **PgHero**, https://pghero.time-4-action.com: slow queries (`pg_stat_statements`), table and
@@ -138,7 +140,7 @@ CONNECTION LIMIT 5; GRANT pg_monitor TO pghero;` plus `GRANT CONNECT` and
 
 ## Maintenance (`/srv/maintenance`, its own repo)
 
-The `/maintenance` Slack command (banner in every app, down page for chosen sites) lives in
+Maintenance banners and down pages (web page `/admin` and the `/maintenance` Slack command) live in
 [time-4-action/t4a-maintenance](https://github.com/time-4-action/t4a-maintenance), which
 deploys itself to `/srv/maintenance` as `deploy` on merge; its README has the commands and setup.
 What it needs from this server: the `edge` network, `/srv/edge/dynamic/maintenance.yml` (owned by
