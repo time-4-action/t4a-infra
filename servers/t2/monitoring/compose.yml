@@ -1,0 +1,42 @@
+# Alloy on t2: host metrics, every container's metrics and logs, pushed to Prometheus and Loki on t4a
+# through https://ingest.time-4-action.com. Lives in /data/stack/monitoring (servers/t2/README.md).
+# config.alloy is servers/t4a/monitoring/alloy/config.alloy, copied here on deploy.
+# .env (mode 600, not in git): INGEST_PASSWORD, the same as in /root/ingest-login on t4a.
+name: monitoring
+
+services:
+  alloy:
+    image: grafana/alloy:v1.20.1
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy
+      - --server.http.listen-addr=127.0.0.1:12345
+    env_file: .env
+    environment:
+      SERVER: t2
+      PROMETHEUS_URL: https://ingest.time-4-action.com/api/v1/write
+      LOKI_URL: https://ingest.time-4-action.com/loki/api/v1/push
+      INGEST_USER: t2
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy
+      - /:/host/root:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # cAdvisor's Docker support goes through containerd (Docker 29); without it no container shows.
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+      # Docker's data-root on t2 (daemon.json); cAdvisor reads container stats from it.
+      - /data/docker:/data/docker:ro
+      - /dev/disk:/dev/disk:ro
+    network_mode: host
+    pid: host
+    # The host's cgroup tree: with a private one cAdvisor sees no other container.
+    cgroup: host
+    privileged: true
+    mem_limit: 384m
+
+volumes:
+  alloy_data:

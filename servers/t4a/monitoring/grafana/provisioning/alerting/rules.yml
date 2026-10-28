@@ -1,0 +1,384 @@
+# Alert rules; every one goes to Slack (slack.yml). Query A is PromQL, C the threshold on it.
+# Summaries are Go templates: $labels.<name> and $values.A.Value come from the query.
+apiVersion: 1
+groups:
+- orgId: 1
+  name: t4a
+  folder: Alerts
+  interval: 1m
+  rules:
+  - uid: site-down
+    title: Site or API down
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: probe_success
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 1
+    noDataState: OK
+    execErrState: Error
+    for: 3m
+    annotations:
+      summary: '{{ $labels.name }} is down ({{ $labels.instance }})'
+    labels:
+      severity: critical
+    isPaused: false
+  - uid: site-slow
+    title: Site or API slow
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: probe_duration_seconds
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 5
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    annotations:
+      summary: '{{ $labels.name }} takes {{ humanize $values.A.Value }}s to answer'
+    labels:
+      severity: warning
+    isPaused: false
+  - uid: cert-expiry
+    title: Certificate expires soon
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: (probe_ssl_earliest_cert_expiry - time()) / 86400
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 14
+    noDataState: OK
+    execErrState: Error
+    for: 1h
+    annotations:
+      summary: '{{ $labels.name }}: certificate expires in {{ humanize $values.A.Value }} days'
+    labels:
+      severity: warning
+    isPaused: false
+  - uid: api-errors
+    title: App returns errors (5xx)
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (router) (rate(traefik_router_requests_total{code=~"5.."}[5m])) / sum by (router) (rate(traefik_router_requests_total[5m])) and sum by (router) (rate(traefik_router_requests_total[5m]))
+          > 0.02
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.05
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    annotations:
+      summary: '{{ $labels.router }}: {{ humanizePercentage $values.A.Value }} of requests fail with 5xx'
+    labels:
+      severity: warning
+    isPaused: false
+  - uid: disk-full
+    title: Disk almost full
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.85
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    annotations:
+      summary: '{{ $labels.server }} {{ $labels.mountpoint }} is {{ humanizePercentage $values.A.Value }} full'
+    labels:
+      severity: critical
+    isPaused: false
+  - uid: ram-low
+    title: Memory low
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 0.1
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    annotations:
+      summary: '{{ $labels.server }}: only {{ humanizePercentage $values.A.Value }} RAM available'
+    labels:
+      severity: warning
+    isPaused: false
+  - uid: cpu-high
+    title: CPU busy
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 1 - avg by (server) (rate(node_cpu_seconds_total{mode="idle"}[5m]))
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.9
+    noDataState: OK
+    execErrState: Error
+    for: 15m
+    annotations:
+      summary: '{{ $labels.server }}: CPU {{ humanizePercentage $values.A.Value }} busy for 15 minutes'
+    labels:
+      severity: warning
+    isPaused: false
+  - uid: server-silent
+    title: Server stopped reporting
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: absent_over_time(node_load1{server="t2"}[5m]) or absent_over_time(node_load1{server="hetzner"}[5m])
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 2m
+    annotations:
+      summary: '{{ $labels.server }} has sent no metrics for 5 minutes: down, or its Alloy stopped'
+    labels:
+      severity: critical
+    isPaused: false
+  - uid: container-restarts
+    title: Container keeps restarting
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: changes(container_start_time_seconds{name!=""}[15m])
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 2
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    annotations:
+      summary: '{{ $labels.server }} {{ $labels.name }} restarted {{ $values.A.Value }} times in 15 minutes'
+    labels:
+      severity: warning
+    isPaused: false
+  - uid: scrape-down
+    title: Monitoring target down
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: up
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 1
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    annotations:
+      summary: '{{ $labels.job }} on {{ $labels.server }} can''t be scraped'
+    labels:
+      severity: warning
+    isPaused: false
+  - uid: db-down
+    title: Database down
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: pg_up or mysql_up
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 1
+    noDataState: OK
+    execErrState: Error
+    for: 2m
+    annotations:
+      summary: '{{ $labels.instance }} is not answering its exporter'
+    labels:
+      severity: critical
+    isPaused: false

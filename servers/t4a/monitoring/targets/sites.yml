@@ -1,0 +1,59 @@
+# Every site and API checked from outside every 30 s; Prometheus re-reads this file on change.
+# `name` is what dashboards and Slack alerts show; `host` is the server it runs on today.
+# module: http_2xx (must answer 2xx) or http_login (redirect/401 to a login counts as up).
+
+# ── Time 4 Action ──
+- targets: [https://export.time-4-action.com/healthz]
+  labels: { name: Export portal UI, group: time-4-action, host: t2, module: http_2xx }
+- targets: [https://api.time-4-action.com/api/export/healthz]
+  labels: { name: Export portal API, group: time-4-action, host: t2, module: http_2xx }
+- targets: [https://mkauto.time-4-action.com/healthz]
+  labels: { name: MetaKocka automation, group: time-4-action, host: t2, module: http_2xx }
+- targets: [https://admin.time-4-action.com/]
+  labels: { name: T4A admin, group: time-4-action, host: t2, module: http_login }
+- targets: [https://chat.time-4-action.com/]
+  labels: { name: T4A chat, group: time-4-action, host: t2, module: http_login }
+- targets: [https://mcp.time-4-action.com/health]
+  labels: { name: T4A MCP, group: time-4-action, host: t2, module: http_2xx }
+- targets: [https://b2b.time-4-action.com/]
+  labels: { name: B2B, group: time-4-action, host: t2, module: http_2xx }
+- targets: [https://www.time-4-action.com/]
+  labels: { name: time-4-action.com, group: time-4-action, host: t2, module: http_2xx }
+- targets: [https://maintenance.time-4-action.com/banner.json]
+  labels: { name: Maintenance banner, group: time-4-action, host: hetzner, module: http_2xx }
+
+# ── Recharge ──
+- targets: [https://recharge-hub.time-4-action.com/healthz]
+  labels: { name: Recharge Hub, group: recharge, host: t2, module: http_2xx }
+- targets: [https://recharge-sources.time-4-action.com/api/healthz]
+  labels: { name: Partners integration API, group: recharge, host: t2, module: http_2xx }
+- targets: [https://recharge.si/]
+  labels: { name: recharge.si shop, group: recharge, host: shopify, module: http_2xx }
+
+# ── Patrik International, The Chase Project ──
+- targets: [https://www.patrikinternational.com/en/]
+  labels: { name: patrikinternational.com, group: patrik, host: t2, module: http_2xx }
+- targets: [https://patrik-international.com/warranty/]
+  labels: { name: Warranty form, group: patrik, host: t2, module: http_2xx }
+- targets: [https://assets.patrik-international.com/health.json]
+  labels: { name: Patrik assets (S3), group: patrik, host: hetzner-s3, module: http_2xx }
+- targets: [https://www.the-chase-project.com/]
+  labels: { name: the-chase-project.com, group: patrik, host: t2, module: http_2xx }
+
+# ── Other sites on t4a ──
+- targets: [https://jakamarinko.com/]
+  labels: { name: jakamarinko.com, group: other, host: hetzner, module: http_2xx }
+- targets: [https://zupnija-pirnice.si/]
+  labels: { name: zupnija-pirnice.si, group: other, host: hetzner, module: http_2xx }
+- targets: [https://rokomet.etiam.si/]
+  labels: { name: rokomet stats, group: other, host: hetzner, module: http_2xx }
+- targets: [https://ld-docs.etiam.si/]
+  labels: { name: ld-docs, group: other, host: hetzner, module: http_2xx }
+
+# ── Ops tools (behind the ops login) ──
+- targets: [https://pghero.time-4-action.com/]
+  labels: { name: PgHero, group: ops, host: hetzner, module: http_login }
+- targets: [https://backrest.time-4-action.com/]
+  labels: { name: Backrest, group: ops, host: hetzner, module: http_login }
+- targets: [https://grafana.time-4-action.com/]
+  labels: { name: Grafana, group: ops, host: hetzner, module: http_login }

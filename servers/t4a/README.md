@@ -7,7 +7,8 @@
 Runs jakamarinko (`/srv/jakamarinko`), rokomet-stats (`/srv/rokomet-stats`) and
 ld-docs (`/srv/ld-docs`). Each app deploys itself from its own repo; this folder
 holds only the server-wide parts in `/srv/edge`, `/srv/postgres`, `/srv/mariadb`,
-`/srv/wordpress`, the ops tools `/srv/pghero` and `/srv/backrest`, `/srv/maintenance`, and the backups.
+`/srv/wordpress`, the ops tools `/srv/pghero` and `/srv/backrest`, `/srv/maintenance`, the
+monitoring for both servers in `/srv/monitoring`, and the backups.
 None of it is deployed by CI: change it here, open a pull request, then copy it
 to the server by hand as described in each section.
 
@@ -28,6 +29,7 @@ ssh t4a 'cd /srv/edge && docker compose up -d'
 - `dynamic/middlewares.yml`: `cloudflare-only` (403 unless from https://www.cloudflare.com/ips/; Docker-published ports skip ufw) and `compress`, on every route. If Cloudflare changes its ranges, update this file and `traefik.yml`.
 - Adding an app: put its web service on the external `edge` network with the labels `traefik.enable=true`, `traefik.http.routers.<name>.rule=Host(\`example.com\`)` and `traefik.http.services.<name>.loadbalancer.server.port=<port>` (router names unique on the server). New Cloudflare zone: add its origin cert to `/srv/edge/certs/<zone>/` and `dynamic/tls.yml`.
 - Never publish an app port on `0.0.0.0`: Docker bypasses ufw. Use the `edge` network, or `127.0.0.1:<port>` if something on the host needs it.
+- Metrics: the `metrics` entrypoint (`:8082`, not published) serves Prometheus metrics per router, service and entrypoint; `monitoring/` scrapes it as `traefik:8082`. Changing `traefik.yml` needs `docker compose restart traefik` (a second or two without any site).
 
 ## Postgres (`postgres/` → `/srv/postgres`)
 
@@ -137,6 +139,64 @@ Set up once on 2026-10-25: the `pghero` role (`CREATE ROLE pghero LOGIN PASSWORD
 CONNECTION LIMIT 5; GRANT pg_monitor TO pghero;` plus `GRANT CONNECT` and
 `pg_stat_statements` per database), `/srv/pghero/.env`, `ops-auth.yml` (hash from
 `openssl passwd -apr1`), and the `time-4-action.com` origin cert copied from t2.
+
+## Monitoring (`monitoring/` → `/srv/monitoring`)
+
+Metrics, logs, dashboards and alerts for both servers and every site and API:
+https://grafana.time-4-action.com, behind the ops login (Grafana trusts the user name the
+`ops-auth` middleware passes in `X-Forwarded-User`; it has no login form of its own). Its
+home page is the **Overview** dashboard: every site and API with status and response time,
+both servers' CPU, RAM and disks, requests, 5xx errors and p95 latency per app behind Traefik,
+every container's RAM and CPU, and the latest error lines from all logs.
+
+```
+t4a: Alloy ──127.0.0.1──> Prometheus, Loki <── Grafana ──> Slack #t4a-server
+t2:  Alloy ──https://ingest.time-4-action.com (ingest-auth)──┘
+Prometheus also scrapes: Traefik :8082, blackbox (targets/sites.yml), postgres-exporter, mariadb-exporter
+```
+
+| Service | What |
+|---|---|
+| `prometheus` | Metrics, 30 days or 8 GB, whichever is smaller. Accepts remote write (Alloy). `127.0.0.1:9090` on the host. |
+| `loki` | Logs of every container on both servers, 30 days. `127.0.0.1:3100` on the host. |
+| `grafana` | Dashboards (`grafana/dashboards/*.json`, read-only in the UI) and alerts (`grafana/provisioning/alerting/`). |
+| `alloy` | This server's collector: host metrics, per-container CPU/RAM/network/disk I/O (cAdvisor) and every container's logs. Host network, pid and cgroup; `config.alloy` is shared with t2. |
+| `blackbox` | Checks every URL in `targets/sites.yml` from here every 30 s. |
+| `postgres-exporter`, `mariadb-exporter` | Database metrics, as the read-only users `metrics` (Postgres `pg_monitor`, MariaDB `PROCESS, BINLOG MONITOR, SLAVE MONITOR`), 3 connections each. |
+
+Alerts (11 rules in `rules.yml`, all to `#t4a-server` through the "t4a server" Slack app,
+`SLACK_BOT_TOKEN` from `/etc/t4a-slack.env`): site or API down 3 min, slow over 5 s, certificate
+under 14 days, over 5 % 5xx on an app, disk over 85 %, RAM under 10 %, CPU over 90 % for 15 min,
+a server stopped reporting, a container restarting, a scrape target down, a database down.
+Summaries are Go templates (`{{ $labels.name }}`); Grafana does not expand environment variables
+in rule files, so a `$` stays as it is.
+
+Not in git, only on the server:
+- `/srv/monitoring/.env` (mode 600): `PG_METRICS_PASSWORD`, `MARIADB_METRICS_PASSWORD`, `GF_SECURITY_ADMIN_PASSWORD`.
+- `/srv/edge/dynamic/ingest-auth.yml`: basic auth `t2` for https://ingest.time-4-action.com; the
+  password is in `/root/ingest-login` and in `/data/stack/monitoring/.env` on t2.
+
+Cloudflare: proxied A records `grafana` and `ingest` in `time-4-action.com` → `77.42.42.60`.
+
+- A new site or API to check: add it to `targets/sites.yml` (`http_2xx` must answer 2xx;
+  `http_login` counts a redirect or 401 to a login as up), then
+  `scp monitoring/targets/sites.yml t4a:/srv/monitoring/targets/`. Prometheus re-reads it, no restart.
+- A new dashboard: export its JSON from Grafana, put it in `grafana/dashboards/` with datasource uids
+  `prometheus` / `loki`, copy it over; Grafana loads it within a minute.
+- Deploy or update:
+  ```
+  scp -r monitoring/compose.yml monitoring/prometheus.yml monitoring/loki.yml monitoring/blackbox.yml monitoring/targets monitoring/alloy monitoring/grafana t4a:/srv/monitoring/
+  ssh t4a 'cd /srv/monitoring && docker compose up -d && docker compose restart grafana prometheus alloy'
+  ```
+  `config.alloy` also goes to t2 (`servers/t2/README.md`).
+- Docker 29 detail: cAdvisor reaches Docker through containerd, so Alloy mounts
+  `/run/containerd/containerd.sock` and runs with `cgroup: host`; without either it sees no containers.
+  Its `disk` collector is off: it walks every container's files and kept t2 in iowait.
+
+Set up on 2026-10-28: the `metrics` users (`CREATE ROLE metrics LOGIN CONNECTION LIMIT 3; GRANT
+pg_monitor TO metrics;` and `CREATE USER metrics@'%' ... WITH MAX_USER_CONNECTIONS 3; GRANT PROCESS,
+BINLOG MONITOR, SLAVE MONITOR ON *.* TO metrics@'%';`), `.env`, `ingest-auth.yml` (hash from
+`openssl passwd -apr1`), the two DNS records, and Traefik's metrics entrypoint.
 
 ## Maintenance (`/srv/maintenance`, its own repo)
 
