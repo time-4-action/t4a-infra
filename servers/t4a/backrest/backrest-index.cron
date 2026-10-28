@@ -1,3 +1,5 @@
-# Backrest runs no backups, so it only lists t4a-backup's snapshots after indexing the repo: do that
-# after the 04:00 backup. Installed as /etc/cron.d/backrest-index on t4a; log /var/log/backrest-index.log.
+# Backrest runs no backups, so it only lists the nightly snapshots after indexing a repo. t4a-production
+# after t4a's 04:00 backup; t4a-t2 after t2's 03:10 backup and its Sunday prune (~04:30), so the two never
+# lock each other. Installed as /etc/cron.d/backrest-index on t4a; log /var/log/backrest-index.log.
 30 4 * * * root /usr/local/bin/t4a-run backrest-index sh -c 'curl -fsS -u "$(awk "/^user/{print \$2}" /root/ops-login):$(awk "/^password/{print \$2}" /root/ops-login)" -X POST https://backrest.time-4-action.com/v1.Backrest/DoRepoTask -H "Content-Type: application/json" -d "{\"repoId\":\"t4a-production\",\"task\":\"TASK_INDEX_SNAPSHOTS\"}"'
+40 5 * * * root /usr/local/bin/t4a-run backrest-index sh -c 'curl -fsS -u "$(awk "/^user/{print \$2}" /root/ops-login):$(awk "/^password/{print \$2}" /root/ops-login)" -X POST https://backrest.time-4-action.com/v1.Backrest/DoRepoTask -H "Content-Type: application/json" -d "{\"repoId\":\"t4a-t2\",\"task\":\"TASK_INDEX_SNAPSHOTS\"}"'

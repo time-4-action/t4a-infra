@@ -120,17 +120,20 @@ Cloudflare: proxied A records `pghero` and `backrest` in `time-4-action.com` →
   reads that as its own login. A new database: `new-app-db.sh` already grants `pghero`
   CONNECT and adds `pg_stat_statements`; add an entry to `pghero.yml`, then
   `scp pghero/pghero.yml t4a:/srv/pghero/ && ssh t4a 'cd /srv/pghero && docker compose restart'`.
-- **Backrest**, https://backrest.time-4-action.com: the restic repo `restic/t4a-production`.
-  Browse snapshots, see sizes, restore or download single files. It uses root's Storage
-  Box key (`/root/.ssh`) and `/root/.restic-password`, mounted read-only. It runs no
-  backups, prunes or checks: `t4a-backup` owns the repo and its retention, so don't use
-  Backrest's forget or prune buttons. Because of that it only lists snapshots after indexing the
-  repo: `backrest-index.cron` (→ `/etc/cron.d/backrest-index`) does it at 04:30, after the backup.
-  Its dashboard card still says "No backups yet" (it counts only backups Backrest runs); the
-  snapshots are under the repo `t4a-production` in the sidebar. `restic/t4a-t2` is deliberately not added.
+- **Backrest**, https://backrest.time-4-action.com: both servers' restic repos,
+  `t4a-production` (this server) and `t4a-t2` (t2's, added 2026-10-28). Browse snapshots, see
+  sizes, restore or download single files. It uses root's Storage Box key (`/root/.ssh`),
+  `/root/.restic-password` and `/root/.restic-password-t2` (t2's, copied from its
+  `RESTIC_PASSWORD_FILE`), mounted read-only. It runs no backups, prunes or checks: `t4a-backup`
+  on each server owns its repo and retention, so don't use Backrest's forget or prune buttons.
+  Because of that it only lists snapshots after indexing a repo: `backrest-index.cron`
+  (→ `/etc/cron.d/backrest-index`) does `t4a-production` at 04:30 and `t4a-t2` at 05:40, after each
+  server's backup and t2's Sunday prune. Its dashboard card says "No backups yet" (it counts only
+  backups Backrest runs); the snapshots are under each repo in the sidebar.
   Backrest's own login is off (`auth.disabled`); the basic auth in front is the login.
   Backrest rewrites `config/config.json` when settings change in the UI; copy it back
-  into git if you change anything there.
+  into git if you change anything there, without its `sync` section (Backrest's private
+  identity key; it stays on the server, and Backrest makes a new one if it's missing).
 
 Deploy or update:
 ```
@@ -214,7 +217,8 @@ What it needs from this server: the `edge` network, `/srv/edge/dynamic/maintenan
 ## Backups
 
 Two independent copies, both on Hetzner Storage Box `u578499` (`u578499.your-storagebox.de`, port 23).
-`restic/t4a-t2` on the same box belongs to the other server (t2): never touch it.
+`restic/t4a-t2` on the same box belongs to the other server (t2): never back up, forget or prune
+it from here. Backrest only reads it (browse and restore).
 
 **1. pgBackRest, point-in-time recovery** (repo `/home/pgbackrest/t4a-production`, AES-256 encrypted)
 - Postgres archives every WAL segment as it fills, and at least every 5 minutes (`archive_timeout`). A lost server costs at most ~5 minutes of writes.
