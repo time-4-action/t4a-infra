@@ -1,0 +1,21 @@
+#!/bin/sh
+# Nightly disk cleanup: old Docker images, build cache, journal and package cache.
+# Installed as /usr/local/bin/t4a-cleanup on both servers, run by /etc/cron.d/t4a-cleanup.
+#
+# Every app deploy pulls a new image tagged with its commit SHA and only prunes
+# untagged ones, so each deploy's image stayed on disk for good (on t2 in
+# October 2026, three 4 GB t4a-mcp images filled /data and a deploy failed).
+# Images newer than KEEP stay for a manual rollback; a deploy's own rollback
+# needs none of them, it goes back to the image the container is running.
+# Images used by any container, running or stopped, are never removed.
+set -eu
+KEEP=48h
+
+echo "$(date '+%F %T') before: $(df -h --output=pcent,avail / /data 2>/dev/null | tail -n +2 | tr -s ' ' | paste -sd,)"
+
+docker image prune --all --force --filter "until=$KEEP" | tail -n 1
+docker builder prune --all --force --filter "until=$KEEP" | tail -n 1
+journalctl --vacuum-size=200M 2>&1 | tail -n 1
+if command -v dnf >/dev/null; then dnf clean packages -q; else apt-get clean; fi
+
+echo "$(date '+%F %T') after:  $(df -h --output=pcent,avail / /data 2>/dev/null | tail -n +2 | tr -s ' ' | paste -sd,)"

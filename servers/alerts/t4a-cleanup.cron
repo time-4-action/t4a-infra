@@ -1,0 +1,3 @@
+# Disk cleanup after the night's backups, before the 05:00 summary reports disk use.
+# Installed as /etc/cron.d/t4a-cleanup on t4a and t2. Output in /var/log/t4a-cleanup.log; a failure posts to Slack (t4a-run).
+30 4 * * * root /usr/local/bin/t4a-run t4a-cleanup /usr/local/bin/t4a-cleanup
