@@ -149,7 +149,8 @@ Metrics, logs, dashboards and alerts for both servers and every site and API:
 https://grafana.time-4-action.com, behind the ops login (Grafana trusts the user name the
 `ops-auth` middleware passes in `X-Forwarded-User`; it has no login form of its own). Its
 home page is the **Overview** dashboard: every site and API with status and response time,
-both servers' CPU, RAM and disks, requests, 5xx errors and p95 latency per app behind Traefik,
+every backup on both servers with its age and size (red over 26 h; from `t4a-backup-metrics`
+in `servers/alerts`, read by Alloy's textfile collector), both servers' CPU, RAM and disks, requests, 5xx errors and p95 latency per app behind Traefik,
 every container's RAM and CPU, and the latest error lines from all logs.
 
 ```
@@ -167,10 +168,11 @@ Prometheus also scrapes: Traefik :8082, blackbox (targets/sites.yml), postgres-e
 | `blackbox` | Checks every URL in `targets/sites.yml` from here every 30 s. |
 | `postgres-exporter`, `mariadb-exporter` | Database metrics, as the read-only users `metrics` (Postgres `pg_monitor`, MariaDB `PROCESS, BINLOG MONITOR, SLAVE MONITOR`), 3 connections each. |
 
-Alerts (11 rules in `rules.yml`, all to `#t4a-server` through the "t4a server" Slack app,
+Alerts (13 rules in `rules.yml`, all to `#t4a-server` through the "t4a server" Slack app,
 `SLACK_BOT_TOKEN` from `/etc/t4a-slack.env`): site or API down 3 min, slow over 5 s, certificate
 under 14 days, over 5 % 5xx on an app, disk over 85 %, RAM under 10 %, CPU over 90 % for 15 min,
-a server stopped reporting, a container restarting, a scrape target down, a database down.
+a server stopped reporting, a container restarting, a scrape target down, a database down,
+a backup older than 26 h, a backup whose state can't be read for 2 h.
 Summaries are Go templates (`{{ $labels.name }}`); Grafana does not expand environment variables
 in rule files, so a `$` stays as it is.
 

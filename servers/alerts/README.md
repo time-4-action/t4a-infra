@@ -26,6 +26,7 @@ If a whole server is down, nothing posts at all: that needs an outside check
 | `t4a-slack` | `/usr/local/bin/t4a-slack "text"`: posts one message | both |
 | `t4a-run` | `/usr/local/bin/t4a-run <name> <cmd...>`: runs a cron job into `/var/log/<name>.log`, posts its last 15 lines if it fails | both |
 | `t4a-daily`, `t4a-daily.cron` | `/usr/local/bin/t4a-daily`, `/etc/cron.d/t4a-daily` | both |
+| `t4a-backup-metrics`, `t4a-backup-metrics.cron` | `/usr/local/bin/t4a-backup-metrics`, `/etc/cron.d/t4a-backup-metrics`: hourly at :50 writes each backup's time and size to `/var/lib/t4a-metrics/backups.prom` for Grafana (Backups on the Overview, "Backup missed" alert) | both |
 | `t4a-cleanup`, `t4a-cleanup.cron` | `/usr/local/bin/t4a-cleanup`, `/etc/cron.d/t4a-cleanup`: at 04:30 removes Docker images no container uses that are older than 48 h, build cache, journal over 200 MB and the package cache | both |
 | `t4a-unit-failed`, `t4a-alert@.service` | `/usr/local/bin/`, `/etc/systemd/system/` | t2 |
 | `on-failure.conf` | `/etc/systemd/system/t4a-backup.service.d/t4a-alert.conf` and the same for `t4a-backup-maintenance.service` | t2 |
@@ -48,14 +49,15 @@ The same app has the `/maintenance` slash command (scope `commands`), served by
 
 ```
 cd servers/alerts
-scp t4a-slack t4a-run t4a-daily t4a-cleanup t4a:/usr/local/bin/ \
-  && scp t4a-daily.cron t4a:/etc/cron.d/t4a-daily && scp t4a-cleanup.cron t4a:/etc/cron.d/t4a-cleanup
-ssh t4a 'chmod 755 /usr/local/bin/t4a-slack /usr/local/bin/t4a-run /usr/local/bin/t4a-daily /usr/local/bin/t4a-cleanup'
+scp t4a-slack t4a-run t4a-daily t4a-cleanup t4a-backup-metrics t4a:/usr/local/bin/ \
+  && scp t4a-daily.cron t4a:/etc/cron.d/t4a-daily && scp t4a-cleanup.cron t4a:/etc/cron.d/t4a-cleanup \
+  && scp t4a-backup-metrics.cron t4a:/etc/cron.d/t4a-backup-metrics
+ssh t4a 'chmod 755 /usr/local/bin/t4a-slack /usr/local/bin/t4a-run /usr/local/bin/t4a-daily /usr/local/bin/t4a-cleanup /usr/local/bin/t4a-backup-metrics'
 
-scp t4a-slack t4a-run t4a-daily t4a-cleanup t4a-unit-failed t4a-alert@.service on-failure.conf t4a-daily.cron t4a-cleanup.cron t4a-t2:/tmp/
-ssh t4a-t2 'cd /tmp && sudo install -m 755 t4a-slack t4a-run t4a-daily t4a-cleanup t4a-unit-failed /usr/local/bin/ \
+scp t4a-slack t4a-run t4a-daily t4a-cleanup t4a-backup-metrics t4a-unit-failed t4a-alert@.service on-failure.conf t4a-daily.cron t4a-cleanup.cron t4a-backup-metrics.cron t4a-t2:/tmp/
+ssh t4a-t2 'cd /tmp && sudo install -m 755 t4a-slack t4a-run t4a-daily t4a-cleanup t4a-backup-metrics t4a-unit-failed /usr/local/bin/ \
   && sudo install -m 644 t4a-alert@.service /etc/systemd/system/ && sudo install -m 644 t4a-daily.cron /etc/cron.d/t4a-daily \
-  && sudo install -m 644 t4a-cleanup.cron /etc/cron.d/t4a-cleanup \
+  && sudo install -m 644 t4a-cleanup.cron /etc/cron.d/t4a-cleanup && sudo install -m 644 t4a-backup-metrics.cron /etc/cron.d/t4a-backup-metrics \
   && for u in t4a-backup t4a-backup-maintenance; do sudo install -D -m 644 on-failure.conf /etc/systemd/system/$u.service.d/t4a-alert.conf; done \
   && sudo systemctl daemon-reload'
 ```

@@ -21,6 +21,11 @@ prometheus.exporter.unix "host" {
     mount_points_exclude = "^/(dev|proc|run|sys|var/lib/docker/.+|data/docker/.+)($|/)"
     fs_types_exclude     = "^(autofs|binfmt_misc|cgroup2?|devpts|devtmpfs|fusectl|mqueue|nsfs|overlay|proc|pstore|securityfs|squashfs|sysfs|tmpfs|tracefs)$"
   }
+
+  // Backup times and sizes from t4a-backup-metrics (servers/alerts), refreshed hourly.
+  textfile {
+    directory = "/host/root/var/lib/t4a-metrics"
+  }
 }
 
 discovery.relabel "host" {
