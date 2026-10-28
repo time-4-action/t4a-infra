@@ -124,7 +124,10 @@ Cloudflare: proxied A records `pghero` and `backrest` in `time-4-action.com` →
   Browse snapshots, see sizes, restore or download single files. It uses root's Storage
   Box key (`/root/.ssh`) and `/root/.restic-password`, mounted read-only. It runs no
   backups, prunes or checks: `t4a-backup` owns the repo and its retention, so don't use
-  Backrest's forget or prune buttons. `restic/t4a-t2` is deliberately not added.
+  Backrest's forget or prune buttons. Because of that it only lists snapshots after indexing the
+  repo: `backrest-index.cron` (→ `/etc/cron.d/backrest-index`) does it at 04:30, after the backup.
+  Its dashboard card still says "No backups yet" (it counts only backups Backrest runs); the
+  snapshots are under the repo `t4a-production` in the sidebar. `restic/t4a-t2` is deliberately not added.
   Backrest's own login is off (`auth.disabled`); the basic auth in front is the login.
   Backrest rewrites `config/config.json` when settings change in the UI; copy it back
   into git if you change anything there.
