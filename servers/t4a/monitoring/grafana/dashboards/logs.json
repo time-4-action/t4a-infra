@@ -1,0 +1,148 @@
+{
+ "uid": "t4a-logs",
+ "title": "Logs",
+ "id": null,
+ "editable": false,
+ "schemaVersion": 39,
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "refresh": "30s",
+ "tags": [
+  "t4a"
+ ],
+ "templating": {
+  "list": [
+   {
+    "name": "server",
+    "type": "query",
+    "datasource": {
+     "type": "loki",
+     "uid": "loki"
+    },
+    "query": {
+     "label": "server",
+     "type": 1,
+     "stream": ""
+    },
+    "includeAll": true,
+    "multi": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "refresh": 2
+   },
+   {
+    "name": "container",
+    "type": "query",
+    "datasource": {
+     "type": "loki",
+     "uid": "loki"
+    },
+    "query": {
+     "label": "container",
+     "type": 1,
+     "stream": "{server=~\"$server\"}"
+    },
+    "includeAll": true,
+    "multi": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "refresh": 2
+   },
+   {
+    "name": "search",
+    "type": "textbox",
+    "label": "Contains",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "type": "timeseries",
+   "title": "Lines per minute",
+   "id": 1,
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (container) (count_over_time({server=~\"$server\", container=~\"$container\"} |~ \"(?i)$search\" [1m]))",
+     "legendFormat": "{{container}}",
+     "refId": "A"
+    }
+   ],
+   "gridPos": {
+    "h": 6,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "right"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "type": "logs",
+   "title": "Logs",
+   "id": 2,
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "{server=~\"$server\", container=~\"$container\"} |~ \"(?i)$search\"",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "gridPos": {
+    "h": 20,
+    "w": 24,
+    "x": 0,
+    "y": 6
+   },
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "options": {
+    "showTime": true,
+    "showLabels": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending",
+    "enableLogDetails": true
+   }
+  }
+ ]
+}

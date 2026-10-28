@@ -1,0 +1,175 @@
+# Monitoring for both servers: metrics (Prometheus), logs (Loki), dashboards and alerts (Grafana).
+# Lives in /srv/monitoring on t4a (servers/t4a/README.md, "Monitoring"). Alloy collects this server;
+# t2 runs its own Alloy (servers/t2/monitoring) and pushes to https://ingest.time-4-action.com.
+name: monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=8GB
+      # Alloy on both servers pushes here (remote write) instead of being scraped.
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./targets:/etc/prometheus/targets:ro
+      - prometheus_data:/prometheus
+    # Alloy runs on the host network and writes to 127.0.0.1:9090.
+    ports:
+      - "127.0.0.1:9090:9090"
+    mem_limit: 1g
+    networks:
+      - monitoring
+      - edge
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      # t2's Alloy pushes metrics here, behind its own login (ingest-auth, not in git).
+      - traefik.http.routers.ingest-metrics.rule=Host(`ingest.time-4-action.com`) && Path(`/api/v1/write`)
+      - traefik.http.routers.ingest-metrics.middlewares=ingest-auth@file
+      - traefik.http.services.ingest-metrics.loadbalancer.server.port=9090
+
+  loki:
+    image: grafana/loki:3.7.8
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+    mem_limit: 768m
+    networks:
+      - monitoring
+      - edge
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      - traefik.http.routers.ingest-logs.rule=Host(`ingest.time-4-action.com`) && Path(`/loki/api/v1/push`)
+      - traefik.http.routers.ingest-logs.middlewares=ingest-auth@file
+      - traefik.http.services.ingest-logs.loadbalancer.server.port=3100
+
+  grafana:
+    image: grafana/grafana:13.2.4
+    restart: unless-stopped
+    env_file:
+      - .env
+      # SLACK_BOT_TOKEN for the alert contact point (servers/alerts/README.md).
+      - /etc/t4a-slack.env
+    environment:
+      GF_SERVER_ROOT_URL: https://grafana.time-4-action.com
+      # The ops login in Traefik (ops-auth) is the login: it passes the user in X-Forwarded-User.
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_AUTH_PROXY_HEADER_NAME: X-Forwarded-User
+      GF_AUTH_PROXY_HEADER_PROPERTY: username
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: Admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/overview.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    mem_limit: 512m
+    networks:
+      - monitoring
+      - edge
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      - traefik.http.routers.grafana.rule=Host(`grafana.time-4-action.com`)
+      - traefik.http.routers.grafana.middlewares=ops-auth@file
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+
+  # Checks every site and API from outside (targets/sites.yml).
+  blackbox:
+    image: prom/blackbox-exporter:v0.29.0
+    restart: unless-stopped
+    command: --config.file=/etc/blackbox/blackbox.yml
+    volumes:
+      - ./blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    mem_limit: 64m
+    networks:
+      - monitoring
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://metrics:${PG_METRICS_PASSWORD}@postgres:5432/postgres?sslmode=disable
+    mem_limit: 64m
+    networks:
+      - monitoring
+      - db
+
+  mariadb-exporter:
+    image: prom/mysqld-exporter:v0.20.0
+    restart: unless-stopped
+    command:
+      - --mysqld.address=mariadb:3306
+      - --mysqld.username=metrics
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: ${MARIADB_METRICS_PASSWORD}
+    mem_limit: 64m
+    networks:
+      - monitoring
+      - mariadb
+
+  # Collects this server: host metrics, every container's CPU/RAM/network, and every container's logs.
+  # Host network and pid so the host's own network and processes are seen, not a container's.
+  alloy:
+    image: grafana/alloy:v1.20.1
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy
+      - --server.http.listen-addr=127.0.0.1:12345
+    environment:
+      SERVER: hetzner
+      PROMETHEUS_URL: http://127.0.0.1:9090/api/v1/write
+      LOKI_URL: http://127.0.0.1:3100/loki/api/v1/push
+      # Unused on 127.0.0.1; the shared config always sends basic auth (t2 needs it).
+      INGEST_USER: local
+      INGEST_PASSWORD: local
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy
+      - /:/host/root:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # cAdvisor's Docker support goes through containerd (Docker 29); without it no container shows.
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    network_mode: host
+    pid: host
+    # The host's cgroup tree: with a private one cAdvisor sees no other container.
+    cgroup: host
+    privileged: true
+    mem_limit: 512m
+
+networks:
+  monitoring:
+  edge:
+    external: true
+  db:
+    external: true
+  mariadb:
+    external: true
+
+volumes:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+  alloy_data:

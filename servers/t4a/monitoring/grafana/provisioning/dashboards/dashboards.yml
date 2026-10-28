@@ -1,0 +1,11 @@
+apiVersion: 1
+
+# Dashboards come from git (servers/t4a/monitoring/grafana/dashboards). Changes made in the UI are
+# not saved back: export the JSON and replace the file instead.
+providers:
+  - name: t4a
+    folder: ""
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

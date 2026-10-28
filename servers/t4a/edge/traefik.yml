@@ -40,6 +40,17 @@ entryPoints:
         - "2405:8100::/32"
         - "2a06:98c0::/29"
         - "2c0f:f248::/32"
+  # Prometheus (monitoring/) scrapes traefik:8082 over the edge network. Not published on the host.
+  metrics:
+    address: ":8082"
+
+# Requests, status codes and latency per router (app), service and entrypoint.
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
 
 log:
   level: INFO

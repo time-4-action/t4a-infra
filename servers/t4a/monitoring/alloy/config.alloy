@@ -1,0 +1,137 @@
+// Grafana Alloy on each server: host metrics, per-container metrics and every container's logs,
+// pushed to Prometheus and Loki on t4a. The same file runs on t4a (servers/t4a/monitoring) and on
+// t2 (servers/t2/monitoring); the environment says which server it is and where to push:
+//   SERVER          label on everything this server sends ("hetzner", "t2")
+//   PROMETHEUS_URL  remote-write URL, LOKI_URL  push URL
+//   INGEST_USER, INGEST_PASSWORD  basic auth for https://ingest.time-4-action.com (t2 only;
+//                   Prometheus and Loki on t4a ignore it on 127.0.0.1)
+
+logging {
+  level = "warn"
+}
+
+// ── host ─────────────────────────────────────────────────────────────────────
+
+prometheus.exporter.unix "host" {
+  procfs_path = "/host/proc"
+  sysfs_path  = "/host/sys"
+  rootfs_path = "/host/root"
+
+  filesystem {
+    mount_points_exclude = "^/(dev|proc|run|sys|var/lib/docker/.+|data/docker/.+)($|/)"
+    fs_types_exclude     = "^(autofs|binfmt_misc|cgroup2?|devpts|devtmpfs|fusectl|mqueue|nsfs|overlay|proc|pstore|securityfs|squashfs|sysfs|tmpfs|tracefs)$"
+  }
+}
+
+discovery.relabel "host" {
+  targets = prometheus.exporter.unix.host.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "node"
+  }
+  rule {
+    target_label = "instance"
+    replacement  = sys.env("SERVER")
+  }
+}
+
+prometheus.scrape "host" {
+  targets         = discovery.relabel.host.output
+  scrape_interval = "30s"
+  forward_to      = [prometheus.remote_write.main.receiver]
+}
+
+// ── containers ───────────────────────────────────────────────────────────────
+
+prometheus.exporter.cadvisor "containers" {
+  docker_host            = "unix:///var/run/docker.sock"
+  docker_only            = true
+  storage_duration       = "2m"
+  store_container_labels = false
+
+  // "disk" walks every container's files on disk: on t2 that kept the CPU in iowait and pushed
+  // Alloy to its memory limit. CPU, memory, network and disk I/O per container stay on.
+  disabled_metrics = ["advtcp", "cpu_topology", "cpuset", "disk", "hugetlb", "memory_numa", "percpu",
+    "perf_event", "process", "referenced_memory", "resctrl", "sched", "tcp", "udp"]
+}
+
+discovery.relabel "containers" {
+  targets = prometheus.exporter.cadvisor.containers.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "cadvisor"
+  }
+  rule {
+    target_label = "instance"
+    replacement  = sys.env("SERVER")
+  }
+}
+
+prometheus.scrape "containers" {
+  targets         = discovery.relabel.containers.output
+  scrape_interval = "30s"
+  forward_to      = [prometheus.remote_write.main.receiver]
+}
+
+prometheus.remote_write "main" {
+  endpoint {
+    url = sys.env("PROMETHEUS_URL")
+
+    basic_auth {
+      username = sys.env("INGEST_USER")
+      password = sys.env("INGEST_PASSWORD")
+    }
+  }
+
+  external_labels = {
+    server = sys.env("SERVER"),
+  }
+}
+
+// ── logs ─────────────────────────────────────────────────────────────────────
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "logs" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "project"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.containers.targets
+  relabel_rules = discovery.relabel.logs.rules
+  forward_to    = [loki.write.main.receiver]
+}
+
+loki.write "main" {
+  endpoint {
+    url = sys.env("LOKI_URL")
+
+    basic_auth {
+      username = sys.env("INGEST_USER")
+      password = sys.env("INGEST_PASSWORD")
+    }
+  }
+
+  external_labels = {
+    server = sys.env("SERVER"),
+  }
+}
