@@ -31,6 +31,7 @@ This principle applies wherever there's a dev/prod split (today: Auth0, MongoDB)
 | `auth0/`   | **Implemented**   | Auth0 dev/prod tenant config-as-code (`auth0-deploy-cli`)      |
 | `mongo/`   | **Implemented**   | MongoDB data pull prod → dev (`mongodump` / `mongorestore`)    |
 | `servers/t4a/` | **Implemented** | Hetzner server `t4a`: Traefik edge, shared Postgres with point-in-time backups, MariaDB + WordPress sites, restic ([README](./servers/t4a/README.md)) |
+| `servers/t2/` | **Implemented** | Server `t2` (T-2): Docker daemon, monitoring, full inventory and the checklist for moving it to t4a ([README](./servers/t2/README.md)) |
 | `servers/alerts/` | **Implemented** | Slack alerts for both servers (t4a, T-2): backup failures at once, a daily summary ([README](./servers/alerts/README.md)) |
 | `nginx/`   | Stub              | Reverse-proxy / web-server config (server blocks, TLS, routing)|
 | `docker/`  | Stub              | Container definitions & orchestration (Dockerfiles, Compose)   |
