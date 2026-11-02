@@ -80,8 +80,15 @@ connections.
 
 ## MongoDB (`mongo/` → `/srv/mongo`)
 
-MongoDB 8.2 for the apps that came from t2 with it (t4a-admin, t4a-chat-ui, t4a-mcp, recharge-si,
-patrik-warranty-form); new apps use Postgres. No published port: apps join the external `mongo`
+MongoDB 8.2 for the apps that come from t2 with it; new apps use Postgres. Three databases:
+
+| Database | Apps | Size on t2 (2026-11-02) |
+|---|---|---|
+| `t4a` | t4a-admin, t4a-chat-ui, t4a-mcp, t4a-partner-portal-api (shared, so they move together) | 34 collections, 31k documents |
+| `patrik` | patrik-warranty-form | 4 collections, 113 documents |
+| `recharge` | recharge-si | 3 collections, 5.3k documents |
+
+No published port: apps join the external `mongo`
 network and connect to `mongo:27017`. Each app has its own user with `readWrite` on its own
 database only. The admin user is in `/srv/mongo/.env` (mode 600, `MONGO_INITDB_ROOT_USERNAME`,
 `MONGO_INITDB_ROOT_PASSWORD`).
@@ -94,9 +101,9 @@ database only. The admin user is in `/srv/mongo/.env` (mode 600, `MONGO_INITDB_R
 - Change the config or bump the patch version: `scp mongo/* t4a:/srv/mongo/ && ssh t4a 'cd /srv/mongo && docker compose up -d'`
   (restarts MongoDB, a few seconds). A new minor or major (8.3, 9.0): one step at a time, and check
   `db.adminCommand({getParameter: 1, featureCompatibilityVersion: 1})` and the apps' drivers first.
-- Nothing outside t4a can reach it. t2's Mongo allowed five outside IPs (`servers/t2/README.md`);
-  if one of them still needs access, use an SSH tunnel (`ssh -L 27017:<container IP>:27017 t4a`),
-  don't publish the port.
+- Nothing outside t4a can reach it. t2's Mongo allowed five outside IPs (`servers/t2/README.md`), but
+  its log (from 2026-09-17) shows the last outside connection on 2026-09-22. If someone needs access
+  again, use an SSH tunnel (`ssh -L 27017:<container IP>:27017 t4a`), don't publish the port.
 
 First install:
 ```
@@ -108,16 +115,19 @@ Then the `metrics` user for the exporter (its password goes into `/srv/monitorin
 `db.getSiblingDB("admin").createUser({user: "metrics", pwd: "...", roles: ["clusterMonitor", {role: "read", db: "local"}]})`.
 Do this before deploying the new `monitoring/compose.yml` and `t4a-backup`, which both expect `/srv/mongo`.
 
-Moving the data from t2, per app or all at once (the admin password on t2 is in its restic `configs` backup):
+Moving a database from t2, streamed from t2 to t4a through your machine (nothing is staged on t2's
+full `/data`). It reads with the app's own connection string from its `.env` on t2, so no password is
+typed or shown; `--drop` makes it repeatable. `<env>` is the app's file under `/data/stack/apps/`:
+`time-4-action/mcp/.env` (t4a), `patrik-international/warranty/.env` (patrik), `recharge-si/.env` (recharge).
 ```
-ssh t4a-t2 'mongodump -u <admin> --authenticationDatabase admin --db <database> --archive --gzip' > <database>.archive.gz
-scp <database>.archive.gz t4a:/root/
-ssh t4a 'cd /srv/mongo && docker compose exec -T mongo sh -c "mongorestore -u \$MONGO_INITDB_ROOT_USERNAME -p \$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --archive --gzip" < /root/<database>.archive.gz'
+ssh t4a-t2 "uri=\$(sudo grep -oE 'mongodb://[^[:space:]\"'\'']+' /data/stack/apps/<env> | head -1); mongodump --quiet --uri \"\$uri\" --db <database> --archive --gzip" \
+  | ssh t4a "cd /srv/mongo && docker compose exec -T mongo sh -c 'mongorestore --quiet -u \"\$MONGO_INITDB_ROOT_USERNAME\" -p \"\$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --archive --gzip --drop'"
 ssh t4a sh /srv/mongo/new-app-mongo.sh <app> <database>
 ```
-Users are not copied from t2: each app gets a new user and password from `new-app-mongo.sh`. Stop
-the app on t2 (or put it in maintenance) before the final dump, so no writes are lost. Delete the
-archive from `/root` afterwards.
+Then compare `estimatedDocumentCount()` per collection on both sides. A trial copy of all three
+databases on 2026-11-02 took under 10 s and matched exactly. Users are not copied from t2: each app
+gets a new user and password from `new-app-mongo.sh` (four users on `t4a`, one per app). Stop the
+app on t2 (or put it in maintenance) before the final copy, so no writes are lost.
 
 ## WordPress (`wordpress/` → `/srv/wordpress`)
 

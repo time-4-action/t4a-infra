@@ -68,8 +68,9 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
 
 - **MariaDB 10.5.29**, datadir `/mnt/vdc/mysql`, only the two WordPress databases below (listens on `*:3306`, firewalld does not open it).
 - **MongoDB**, `/data/mongo` (18 MB), auth on, listens on `0.0.0.0:27017`. firewalld allows 27017 only from 176.76.128.14,
-  176.76.102.199, 87.119.132.30, 176.76.130.2 and 87.119.143.210, and drops 92.118.39.57. Used by admin, chat, mcp,
-  recharge-si and the warranty form. t4a has no Mongo yet.
+  176.76.102.199, 87.119.132.30, 176.76.130.2 and 87.119.143.210, and drops 92.118.39.57; the last outside
+  connection in the log was 2026-09-22. Databases: `t4a` (admin, chat, mcp, partner-portal-api), `patrik`
+  (warranty form), `recharge` (recharge-si). t4a has its own Mongo now (`servers/t4a/README.md`, "MongoDB").
 - **PHP-FPM**: default pool PHP 8.5 (`www.sock`) serves both WordPress sites. A PHP 8.2 `patrik-web` pool (`php82-php-fpm`)
   runs but no vhost uses it.
 - **autodiscover.service**: Node app in `/mnt/vdc/www/autodiscover-server`, 127.0.0.1:8443, with `/mnt/vdc/www/mail/config-v1.1.xml`
@@ -113,8 +114,8 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
 
 ## Moving to t4a
 
-1. **Decide first**: what to do with `patrik-test` and its IONOS database; where MongoDB lives on t4a; which outside hosts
-   connect to Mongo (the five IPs above).
+1. **Decide first**: what to do with `patrik-test` and its IONOS database. (MongoDB: runs on t4a since 2026-11-02;
+   no outside host has connected since September.)
 2. **Data**: `pg_dump` Recharge Hub; `mongodump` Mongo; `mariadb-dump` the two WP databases; copy ChromaDB, `export/api/data`,
    `mk-automation`, the `.env` files. Do a trial restore on t4a.
 3. **WordPress**, per site: `sh /srv/wordpress/new-site.sh <site> <domain>...` on t4a, copy files into `html/` (`chown 33:33`),
