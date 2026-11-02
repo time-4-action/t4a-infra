@@ -36,3 +36,4 @@ auth0/tenant/**/*.secret.*
 # Keep example templates and the tenant placeholder tracked
 !*.example.json
 !auth0/tenant/.gitkeep
+__pycache__/
