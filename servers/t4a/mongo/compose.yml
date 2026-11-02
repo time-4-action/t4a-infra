@@ -1,0 +1,37 @@
+# MongoDB for the apps that still use it (moved from t2); new apps use Postgres. Lives in /srv/mongo
+# (servers/t4a/README.md in time-4-action/t4a-infra). Not published on any port: apps reach it as
+# `mongo:27017` over the `mongo` network.
+name: mongo
+
+services:
+  mongo:
+    # Same minor as t2 (8.2.3), so its dump restores as it is.
+    image: mongo:8.2.12
+    restart: unless-stopped
+    command: ["mongod", "--config", "/etc/mongod.conf"]
+    # MONGO_INITDB_ROOT_USERNAME / MONGO_INITDB_ROOT_PASSWORD: the admin user, created on the first start only.
+    env_file: .env
+    volumes:
+      - mongo_data:/data/db
+      - ./mongod.conf:/etc/mongod.conf:ro
+    networks:
+      - mongo
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # A clean WiredTiger shutdown needs more than Docker's default 10 s.
+    stop_grace_period: 2m
+    mem_limit: 1g
+    logging:
+      options:
+        max-size: 10m
+        max-file: "5"
+
+networks:
+  mongo:
+    name: mongo
+
+volumes:
+  mongo_data:

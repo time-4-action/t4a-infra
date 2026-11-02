@@ -26,6 +26,11 @@ scrape_configs:
       - targets: [mariadb-exporter:9104]
         labels: { server: hetzner, instance: mariadb }
 
+  - job_name: mongo
+    static_configs:
+      - targets: [mongodb-exporter:9216]
+        labels: { server: hetzner, instance: mongo }
+
   - job_name: loki
     static_configs:
       - targets: [loki:3100]

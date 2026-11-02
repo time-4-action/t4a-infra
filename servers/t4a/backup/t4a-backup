@@ -25,8 +25,14 @@ for db in $(my 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -N -e "SHOW DATABASES"
   my "mariadb-dump -uroot -p\"\$MARIADB_ROOT_PASSWORD\" --single-transaction --routines --events --databases $db" > "$mydumps/$db.sql"
 done
 
+# Every MongoDB database, users and roles included (admin), as one gzipped archive.
+mongodumps=/var/backups/mongo
+mkdir -p "$mongodumps"; chmod 700 "$mongodumps"
+cd /srv/mongo
+docker compose exec -T mongo sh -c 'mongodump --quiet -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --archive --gzip' </dev/null > "$mongodumps/all.archive.gz"
+
 # /srv: every app's compose.yml, .env, certs, WordPress files, claude-pool accounts and rokomet's nightly app.db copies.
-restic backup --quiet --host t4a /srv "$dumps" "$mydumps" /etc/cron.d /usr/local/bin
+restic backup --quiet --host t4a /srv "$dumps" "$mydumps" "$mongodumps" /etc/cron.d /usr/local/bin
 restic forget --quiet --host t4a --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
 
 # Sundays: read back 5 % of the data to catch a broken repo early.

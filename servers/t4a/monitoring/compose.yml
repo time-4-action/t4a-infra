@@ -124,6 +124,20 @@ services:
       - monitoring
       - mariadb
 
+  mongodb-exporter:
+    image: percona/mongodb_exporter:0.54.0
+    restart: unless-stopped
+    command:
+      - --compatible-mode
+      - --collector.diagnosticdata
+      - --collector.dbstats
+    environment:
+      MONGODB_URI: mongodb://metrics:${MONGO_METRICS_PASSWORD}@mongo:27017/admin
+    mem_limit: 64m
+    networks:
+      - monitoring
+      - mongo
+
   # Collects this server: host metrics, every container's CPU/RAM/network, and every container's logs.
   # Host network and pid so the host's own network and processes are seen, not a container's.
   alloy:
@@ -166,6 +180,8 @@ networks:
   db:
     external: true
   mariadb:
+    external: true
+  mongo:
     external: true
 
 volumes:
