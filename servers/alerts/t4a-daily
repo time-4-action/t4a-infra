@@ -132,6 +132,16 @@ def unit_t2():
 
 # --- both ---
 
+def cron_jobs():
+    # Written by t4a-run after every run: "<exit code> <unix time>". A backup can leave a fresh
+    # snapshot and still fail afterwards (prune, check), which the snapshot age doesn't show.
+    for path in sorted(glob.glob("/var/lib/t4a-run/*")):
+        rc, t = open(path).read().split()
+        if rc != "0":
+            bad(f"{os.path.basename(path)}: last run failed (exit {rc}, {when(datetime.fromtimestamp(int(t), timezone.utc))}),"
+                f" see /var/log/{os.path.basename(path)}.log")
+
+
 def disk():
     for mount in ["/", "/data"]:
         if mount == "/data" and not os.path.ismount(mount):
@@ -172,6 +182,7 @@ elif os.path.exists("/etc/t4a-backup.env"):
     check("restic", restic_t2)
 else:
     name = socket.gethostname()
+check("cron jobs", cron_jobs)
 check("disk", disk)
 check("memory", memory)
 check("docker", containers)

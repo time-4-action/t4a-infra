@@ -31,12 +31,16 @@ mkdir -p "$mongodumps"; chmod 700 "$mongodumps"
 cd /srv/mongo
 docker compose exec -T mongo sh -c 'mongodump --quiet -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --archive --gzip' </dev/null > "$mongodumps/all.archive.gz"
 
+# A restic killed mid-run (2026-10-25) leaves its lock behind, and forget --prune then fails every night.
+# unlock removes only locks whose process is gone; --retry-lock waits out a live one (Backrest indexing).
+restic unlock --quiet
+
 # /srv: every app's compose.yml, .env, certs, WordPress files, claude-pool accounts and rokomet's nightly app.db copies.
-restic backup --quiet --host t4a /srv "$dumps" "$mydumps" "$mongodumps" /etc/cron.d /usr/local/bin
-restic forget --quiet --host t4a --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
+restic backup --quiet --retry-lock 30m --host t4a /srv "$dumps" "$mydumps" "$mongodumps" /etc/cron.d /usr/local/bin
+restic forget --quiet --retry-lock 30m --host t4a --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
 
 # Sundays: read back 5 % of the data to catch a broken repo early.
-if [ "$(date +%u)" = 7 ]; then restic check --quiet --read-data-subset=5%; fi
+if [ "$(date +%u)" = 7 ]; then restic check --quiet --retry-lock 30m --read-data-subset=5%; fi
 
 # Heartbeat: a monitor that alerts when this ping stops arriving (README.md).
 [ -f /etc/t4a-heartbeat.env ] && . /etc/t4a-heartbeat.env

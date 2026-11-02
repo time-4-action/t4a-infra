@@ -15,7 +15,14 @@ The daily summary (`t4a-daily`) lists each backup with its time and size, and fl
 On t4a it covers pgBackRest (latest base backup, restore window, WAL archiving),
 restic and rokomet's `app.db` copy; on t2 the restic snapshot per tag (`mariadb`,
 `wordpress`, `mongodb`, `configs`) and the last result of `t4a-backup.service`.
-On both: disk over 80 %, RAM under 10 % available, unhealthy or restarting containers.
+On both: any cron job run through `t4a-run` whose last run failed (`/var/lib/t4a-run/<name>`;
+a fresh snapshot alone doesn't mean the job finished, see 2026-10-25 below), disk over 80 %,
+RAM under 10 % available, unhealthy or restarting containers.
+
+2026-10-25 to 2026-11-02: a `restic` killed during setup left its lock in `restic/t4a-production`.
+Every night the snapshot was still made, but `forget --prune` failed on the lock, so `t4a-backup`
+exited 1 (posted to Slack each night) while the summary said "all OK". `t4a-backup` now runs
+`restic unlock` first (only removes locks whose process is gone) and `--retry-lock 30m`.
 If a whole server is down, nothing posts at all: that needs an outside check
 (Uptime Kuma push monitors, `/etc/t4a-heartbeat.env` in `servers/t4a/README.md`).
 
@@ -24,7 +31,7 @@ If a whole server is down, nothing posts at all: that needs an outside check
 | File | Installed as | On |
 |---|---|---|
 | `t4a-slack` | `/usr/local/bin/t4a-slack "text"`: posts one message | both |
-| `t4a-run` | `/usr/local/bin/t4a-run <name> <cmd...>`: runs a cron job into `/var/log/<name>.log`, posts its last 15 lines if it fails | both |
+| `t4a-run` | `/usr/local/bin/t4a-run <name> <cmd...>`: runs a cron job into `/var/log/<name>.log`, posts its last 15 lines if it fails, records the exit code in `/var/lib/t4a-run/<name>` | both |
 | `t4a-daily`, `t4a-daily.cron` | `/usr/local/bin/t4a-daily`, `/etc/cron.d/t4a-daily` | both |
 | `t4a-cleanup`, `t4a-cleanup.cron` | `/usr/local/bin/t4a-cleanup`, `/etc/cron.d/t4a-cleanup`: at 04:30 removes Docker images no container uses that are older than 48 h, build cache, journal over 200 MB and the package cache | both |
 | `t4a-unit-failed`, `t4a-alert@.service` | `/usr/local/bin/`, `/etc/systemd/system/` | t2 |
