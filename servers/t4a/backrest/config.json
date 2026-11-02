@@ -7,10 +7,40 @@
       "id": "t4a-production",
       "uri": "sftp:storagebox:restic/t4a-production",
       "guid": "2b3f55ce826b39eb820056b12c36fd22f07db8c011001e971d19976ba9fa54d3",
-      "env": ["RESTIC_PASSWORD_FILE=/run/secrets/restic-password"],
-      "prunePolicy": {"schedule": {"disabled": true}},
-      "checkPolicy": {"schedule": {"disabled": true}}
+      "env": [
+        "RESTIC_PASSWORD_FILE=/run/secrets/restic-password"
+      ],
+      "prunePolicy": {
+        "schedule": {
+          "disabled": true
+        }
+      },
+      "checkPolicy": {
+        "schedule": {
+          "disabled": true
+        }
+      }
+    },
+    {
+      "id": "t4a-t2",
+      "uri": "sftp:storagebox:restic/t4a-t2",
+      "guid": "06567e7f4222f47032ad3355e95a024aa51b2e440f6ed5f7378a2d41ed87227c",
+      "env": [
+        "RESTIC_PASSWORD_FILE=/run/secrets/restic-password-t2"
+      ],
+      "prunePolicy": {
+        "schedule": {
+          "disabled": true
+        }
+      },
+      "checkPolicy": {
+        "schedule": {
+          "disabled": true
+        }
+      }
     }
   ],
-  "auth": {"disabled": true}
+  "auth": {
+    "disabled": true
+  }
 }

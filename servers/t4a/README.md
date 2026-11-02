@@ -171,14 +171,20 @@ Cloudflare: proxied A records `pghero` and `backrest` in `time-4-action.com` →
   reads that as its own login. A new database: `new-app-db.sh` already grants `pghero`
   CONNECT and adds `pg_stat_statements`; add an entry to `pghero.yml`, then
   `scp pghero/pghero.yml t4a:/srv/pghero/ && ssh t4a 'cd /srv/pghero && docker compose restart'`.
-- **Backrest**, https://backrest.time-4-action.com: the restic repo `restic/t4a-production`.
-  Browse snapshots, see sizes, restore or download single files. It uses root's Storage
-  Box key (`/root/.ssh`) and `/root/.restic-password`, mounted read-only. It runs no
-  backups, prunes or checks: `t4a-backup` owns the repo and its retention, so don't use
-  Backrest's forget or prune buttons. `restic/t4a-t2` is deliberately not added.
+- **Backrest**, https://backrest.time-4-action.com: both servers' restic repos,
+  `t4a-production` (this server) and `t4a-t2` (t2's, added 2026-10-28). Browse snapshots, see
+  sizes, restore or download single files. It uses root's Storage Box key (`/root/.ssh`),
+  `/root/.restic-password` and `/root/.restic-password-t2` (t2's, copied from its
+  `RESTIC_PASSWORD_FILE`), mounted read-only. It runs no backups, prunes or checks: `t4a-backup`
+  on each server owns its repo and retention, so don't use Backrest's forget or prune buttons.
+  Because of that it only lists snapshots after indexing a repo: `backrest-index.cron`
+  (→ `/etc/cron.d/backrest-index`) does `t4a-production` at 04:30 and `t4a-t2` at 05:40, after each
+  server's backup and t2's Sunday prune. Its dashboard card says "No backups yet" (it counts only
+  backups Backrest runs); the snapshots are under each repo in the sidebar.
   Backrest's own login is off (`auth.disabled`); the basic auth in front is the login.
   Backrest rewrites `config/config.json` when settings change in the UI; copy it back
-  into git if you change anything there.
+  into git if you change anything there, without its `sync` section (Backrest's private
+  identity key; it stays on the server, and Backrest makes a new one if it's missing).
 
 Deploy or update:
 ```
@@ -197,7 +203,8 @@ Metrics, logs, dashboards and alerts for both servers and every site and API:
 https://grafana.time-4-action.com, behind the ops login (Grafana trusts the user name the
 `ops-auth` middleware passes in `X-Forwarded-User`; it has no login form of its own). Its
 home page is the **Overview** dashboard: every site and API with status and response time,
-both servers' CPU, RAM and disks, requests, 5xx errors and p95 latency per app behind Traefik,
+every backup on both servers with its age and size (red over 26 h; from `t4a-backup-metrics`
+in `servers/alerts`, read by Alloy's textfile collector), both servers' CPU, RAM and disks, requests, 5xx errors and p95 latency per app behind Traefik,
 every container's RAM and CPU, and the latest error lines from all logs.
 
 ```
@@ -215,10 +222,11 @@ Prometheus also scrapes: Traefik :8082, blackbox (targets/sites.yml), postgres-e
 | `blackbox` | Checks every URL in `targets/sites.yml` from here every 30 s. |
 | `postgres-exporter`, `mariadb-exporter`, `mongodb-exporter` | Database metrics, as the read-only users `metrics` (Postgres `pg_monitor`, MariaDB `PROCESS, BINLOG MONITOR, SLAVE MONITOR`, 3 connections each; MongoDB `clusterMonitor` and `read` on `local`). |
 
-Alerts (11 rules in `rules.yml`, all to `#t4a-server` through the "t4a server" Slack app,
+Alerts (13 rules in `rules.yml`, all to `#t4a-server` through the "t4a server" Slack app,
 `SLACK_BOT_TOKEN` from `/etc/t4a-slack.env`): site or API down 3 min, slow over 5 s, certificate
 under 14 days, over 5 % 5xx on an app, disk over 85 %, RAM under 10 %, CPU over 90 % for 15 min,
-a server stopped reporting, a container restarting, a scrape target down, a database down.
+a server stopped reporting, a container restarting, a scrape target down, a database down,
+a backup older than 26 h, a backup whose state can't be read for 2 h.
 Summaries are Go templates (`{{ $labels.name }}`); Grafana does not expand environment variables
 in rule files, so a `$` stays as it is.
 
@@ -260,7 +268,8 @@ What it needs from this server: the `edge` network, `/srv/edge/dynamic/maintenan
 ## Backups
 
 Two independent copies, both on Hetzner Storage Box `u578499` (`u578499.your-storagebox.de`, port 23).
-`restic/t4a-t2` on the same box belongs to the other server (t2): never touch it.
+`restic/t4a-t2` on the same box belongs to the other server (t2): never back up, forget or prune
+it from here. Backrest only reads it (browse and restore).
 
 **1. pgBackRest, point-in-time recovery** (repo `/home/pgbackrest/t4a-production`, AES-256 encrypted)
 - Postgres archives every WAL segment as it fills, and at least every 5 minutes (`archive_timeout`). A lost server costs at most ~5 minutes of writes.

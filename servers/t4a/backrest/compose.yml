@@ -19,6 +19,8 @@ services:
       # The same Storage Box key, ssh config and password the nightly backup uses.
       - /root/.ssh:/root/.ssh:ro
       - /root/.restic-password:/run/secrets/restic-password:ro
+      # t2's repo restic/t4a-t2, browse and restore only (its password, copied from t2).
+      - /root/.restic-password-t2:/run/secrets/restic-password-t2:ro
     mem_limit: 512m
     networks:
       - edge

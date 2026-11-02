@@ -382,3 +382,71 @@ groups:
     labels:
       severity: critical
     isPaused: false
+  - uid: backup-old
+    title: Backup missed
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: (time() - t4a_backup_last_timestamp_seconds) / 3600
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 26
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    annotations:
+      summary: '{{ $labels.server }}: {{ $labels.what }} last ran {{ humanize $values.A.Value }} hours ago'
+    labels:
+      severity: critical
+    isPaused: false
+  - uid: backup-unreadable
+    title: Backup state unreadable
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: t4a_backup_metrics_failed
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 2h
+    annotations:
+      summary: '{{ $labels.server }}: can''t read the state of backup {{ $labels.backup }} (see /var/log/t4a-backup-metrics.log)'
+    labels:
+      severity: warning
+    isPaused: false

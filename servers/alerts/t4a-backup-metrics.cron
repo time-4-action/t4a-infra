@@ -1,0 +1,3 @@
+# Backup times and sizes for Grafana, hourly. Installed as /etc/cron.d/t4a-backup-metrics on t4a and t2.
+# Output in /var/lib/t4a-metrics/backups.prom; a failure posts to Slack (t4a-run).
+50 * * * * root /usr/local/bin/t4a-run t4a-backup-metrics /usr/local/bin/t4a-backup-metrics

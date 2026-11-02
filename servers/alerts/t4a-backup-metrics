@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+# Writes the time and size of each server's latest backups as Prometheus metrics, for the Backups
+# panel and alert in Grafana (servers/t4a/monitoring). Alloy's textfile collector reads
+# /var/lib/t4a-metrics/*.prom. Installed as /usr/local/bin/t4a-backup-metrics on both servers,
+# run hourly by /etc/cron.d/t4a-backup-metrics. Python 3.9 (t2 is AlmaLinux 9).
+# A backup that can't be read is left out of the file, which the panel shows as missing.
+import json, os, subprocess, sys, tempfile
+from datetime import datetime
+
+OUT = "/var/lib/t4a-metrics/backups.prom"
+T2_RESTIC_TAGS = {
+    "hub-postgres": "Recharge Hub database",
+    "mongodb": "MongoDB (portal, admin, chat, warranty)",
+    "mariadb": "MariaDB (WordPress databases)",
+    "wordpress": "WordPress files",
+    "configs": "Configs, compose files, .env",
+}
+
+rows = []   # (backup, what, unix time, size in bytes)
+failed = []
+
+
+def run(cmd, cwd=None, env=None):
+    return subprocess.run(cmd, cwd=cwd, env=env, shell=isinstance(cmd, str), check=True,
+                          capture_output=True, text=True, stdin=subprocess.DEVNULL).stdout
+
+
+def parse_time(s):
+    # restic: 2026-10-25T04:00:12.123456789+00:00; Python 3.9 takes at most microseconds.
+    if "." in s:
+        head, rest = s.split(".", 1)
+        frac = "".join(c for c in rest if c.isdigit())
+        s = head + "." + frac[:6] + (rest[len(frac):] or "+00:00")
+    return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+
+
+def check(name, fn):
+    try:
+        fn()
+    except Exception as e:
+        failed.append(name)
+        print(f"{name}: {str(e).strip()[:300]}", file=sys.stderr)
+
+
+# ── t4a (Hetzner) ──
+
+def pgbackrest():
+    info = json.loads(run("docker compose exec -T -u postgres postgres pgbackrest --stanza=main --output=json info",
+                          cwd="/srv/postgres"))[0]
+    last = info["backup"][-1]
+    rows.append(("pgbackrest", "Postgres base backup (point-in-time)", last["timestamp"]["stop"],
+                 last["info"]["repository"]["delta"]))
+
+
+def restic_t4a():
+    env = dict(os.environ, RESTIC_REPOSITORY="sftp:storagebox:restic/t4a-production",
+               RESTIC_PASSWORD_FILE="/root/.restic-password")
+    snap = json.loads(run(["restic", "snapshots", "--host", "t4a", "--latest", "1", "--json"], env=env))[-1]
+    rows.append(("restic", "Dumps, /srv, WordPress files", parse_time(snap["time"]),
+                 snap.get("summary", {}).get("total_bytes_processed", 0)))
+
+
+# ── t2 (T-2) ──
+
+def restic_t2():
+    latest = {}
+    for snap in json.loads(run("bash -c 'set -a; . /etc/t4a-backup.env; restic snapshots --json'")):
+        for tag in snap.get("tags") or []:
+            latest[tag] = snap
+    for tag, what in T2_RESTIC_TAGS.items():
+        snap = latest.get(tag)
+        if snap:
+            rows.append((f"restic-{tag}", what, parse_time(snap["time"]),
+                         snap.get("summary", {}).get("total_bytes_processed", 0)))
+        else:
+            failed.append(f"restic-{tag}")
+
+
+if os.path.exists("/srv/postgres/compose.yml"):
+    check("pgbackrest", pgbackrest)
+    check("restic", restic_t4a)
+elif os.path.exists("/etc/t4a-backup.env"):
+    check("restic", restic_t2)
+
+lines = [
+    "# HELP t4a_backup_last_timestamp_seconds When the latest backup finished.",
+    "# TYPE t4a_backup_last_timestamp_seconds gauge",
+]
+lines += [f't4a_backup_last_timestamp_seconds{{backup="{b}",what="{w}"}} {t:.0f}' for b, w, t, _ in rows]
+lines += [
+    "# HELP t4a_backup_last_size_bytes Size the latest backup covered.",
+    "# TYPE t4a_backup_last_size_bytes gauge",
+]
+lines += [f't4a_backup_last_size_bytes{{backup="{b}",what="{w}"}} {s}' for b, w, _, s in rows]
+lines += [
+    "# HELP t4a_backup_metrics_failed 1 when a backup's state could not be read.",
+    "# TYPE t4a_backup_metrics_failed gauge",
+]
+lines += [f't4a_backup_metrics_failed{{backup="{b}"}} 1' for b in failed]
+
+os.makedirs(os.path.dirname(OUT), exist_ok=True)
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(OUT))
+with os.fdopen(fd, "w") as f:
+    f.write("\n".join(lines) + "\n")
+os.chmod(tmp, 0o644)
+os.replace(tmp, OUT)
+# Exit non-zero on a read failure so t4a-run posts it to Slack.
+sys.exit(1 if failed else 0)
