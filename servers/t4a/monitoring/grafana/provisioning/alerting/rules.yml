@@ -359,7 +359,7 @@ groups:
       datasourceUid: prometheus
       model:
         refId: A
-        expr: pg_up or mysql_up
+        expr: pg_up or mysql_up or mongodb_up
         instant: true
         intervalMs: 1000
         maxDataPoints: 43200

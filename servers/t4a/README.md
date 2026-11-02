@@ -6,7 +6,7 @@
 
 Runs jakamarinko (`/srv/jakamarinko`), rokomet-stats (`/srv/rokomet-stats`) and
 ld-docs (`/srv/ld-docs`). Each app deploys itself from its own repo; this folder
-holds only the server-wide parts in `/srv/edge`, `/srv/postgres`, `/srv/mariadb`,
+holds only the server-wide parts in `/srv/edge`, `/srv/postgres`, `/srv/mariadb`, `/srv/mongo`,
 `/srv/wordpress`, the ops tools `/srv/pghero` and `/srv/backrest`, `/srv/maintenance`, the
 monitoring for both servers in `/srv/monitoring`, and the backups.
 None of it is deployed by CI: change it here, open a pull request, then copy it
@@ -77,6 +77,57 @@ connections.
 - Change the config or bump the minor version: `scp mariadb/* t4a:/srv/mariadb/ && ssh t4a 'cd /srv/mariadb && docker compose up -d'`
   (restarts MariaDB, a few seconds; `MARIADB_AUTO_UPGRADE` runs `mariadb-upgrade`).
   A major upgrade (12.x): dump and restore into a new volume.
+
+## MongoDB (`mongo/` → `/srv/mongo`)
+
+MongoDB 8.2 for the apps that come from t2 with it; new apps use Postgres. Three databases:
+
+| Database | Apps | Size on t2 (2026-11-02) |
+|---|---|---|
+| `t4a` | t4a-admin, t4a-chat-ui, t4a-mcp, t4a-partner-portal-api (shared, so they move together) | 34 collections, 31k documents |
+| `patrik` | patrik-warranty-form | 4 collections, 113 documents |
+| `recharge` | recharge-si | 3 collections, 5.3k documents |
+
+No published port: apps join the external `mongo`
+network and connect to `mongo:27017`. Each app has its own user with `readWrite` on its own
+database only. The admin user is in `/srv/mongo/.env` (mode 600, `MONGO_INITDB_ROOT_USERNAME`,
+`MONGO_INITDB_ROOT_PASSWORD`).
+
+- `mongod.conf`: 0.5 GB WiredTiger cache (container limit 1 GB), auth on, operations over 500 ms
+  in `docker compose logs mongo` (and so in Loki).
+- New app: `ssh t4a sh /srv/mongo/new-app-mongo.sh <name> [<database>]` creates the user and prints
+  a `MONGODB_URI` for that app's `.env`. The app's compose file needs the `mongo` network (external).
+- Shell: `ssh -t t4a 'cd /srv/mongo && docker compose exec mongo sh -c "mongosh -u \$MONGO_INITDB_ROOT_USERNAME -p \$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin"'`
+- Change the config or bump the patch version: `scp mongo/* t4a:/srv/mongo/ && ssh t4a 'cd /srv/mongo && docker compose up -d'`
+  (restarts MongoDB, a few seconds). A new minor or major (8.3, 9.0): one step at a time, and check
+  `db.adminCommand({getParameter: 1, featureCompatibilityVersion: 1})` and the apps' drivers first.
+- Nothing outside t4a can reach it. t2's Mongo allowed five outside IPs (`servers/t2/README.md`), but
+  its log (from 2026-09-17) shows the last outside connection on 2026-09-22. If someone needs access
+  again, use an SSH tunnel (`ssh -L 27017:<container IP>:27017 t4a`), don't publish the port.
+
+First install:
+```
+scp -r mongo t4a:/srv/
+ssh t4a 'umask 077; printf "MONGO_INITDB_ROOT_USERNAME=admin\nMONGO_INITDB_ROOT_PASSWORD=%s\n" $(openssl rand -hex 24) > /srv/mongo/.env'
+ssh t4a 'cd /srv/mongo && docker compose up -d'
+```
+Then the `metrics` user for the exporter (its password goes into `/srv/monitoring/.env` as `MONGO_METRICS_PASSWORD`):
+`db.getSiblingDB("admin").createUser({user: "metrics", pwd: "...", roles: ["clusterMonitor", {role: "read", db: "local"}]})`.
+Do this before deploying the new `monitoring/compose.yml` and `t4a-backup`, which both expect `/srv/mongo`.
+
+Moving a database from t2, streamed from t2 to t4a through your machine (nothing is staged on t2's
+full `/data`). It reads with the app's own connection string from its `.env` on t2, so no password is
+typed or shown; `--drop` makes it repeatable. `<env>` is the app's file under `/data/stack/apps/`:
+`time-4-action/mcp/.env` (t4a), `patrik-international/warranty/.env` (patrik), `recharge-si/.env` (recharge).
+```
+ssh t4a-t2 "uri=\$(sudo grep -oE 'mongodb://[^[:space:]\"'\'']+' /data/stack/apps/<env> | head -1); mongodump --quiet --uri \"\$uri\" --db <database> --archive --gzip" \
+  | ssh t4a "cd /srv/mongo && docker compose exec -T mongo sh -c 'mongorestore --quiet -u \"\$MONGO_INITDB_ROOT_USERNAME\" -p \"\$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --archive --gzip --drop'"
+ssh t4a sh /srv/mongo/new-app-mongo.sh <app> <database>
+```
+Then compare `estimatedDocumentCount()` per collection on both sides. A trial copy of all three
+databases on 2026-11-02 took under 10 s and matched exactly. Users are not copied from t2: each app
+gets a new user and password from `new-app-mongo.sh` (four users on `t4a`, one per app). Stop the
+app on t2 (or put it in maintenance) before the final copy, so no writes are lost.
 
 ## WordPress (`wordpress/` → `/srv/wordpress`)
 
@@ -152,7 +203,7 @@ every container's RAM and CPU, and the latest error lines from all logs.
 ```
 t4a: Alloy ──127.0.0.1──> Prometheus, Loki <── Grafana ──> Slack #t4a-server
 t2:  Alloy ──https://ingest.time-4-action.com (ingest-auth)──┘
-Prometheus also scrapes: Traefik :8082, blackbox (targets/sites.yml), postgres-exporter, mariadb-exporter
+Prometheus also scrapes: Traefik :8082, blackbox (targets/sites.yml), postgres-exporter, mariadb-exporter, mongodb-exporter
 ```
 
 | Service | What |
@@ -162,7 +213,7 @@ Prometheus also scrapes: Traefik :8082, blackbox (targets/sites.yml), postgres-e
 | `grafana` | Dashboards (`grafana/dashboards/*.json`, read-only in the UI) and alerts (`grafana/provisioning/alerting/`). |
 | `alloy` | This server's collector: host metrics, per-container CPU/RAM/network/disk I/O (cAdvisor) and every container's logs. Host network, pid and cgroup; `config.alloy` is shared with t2. |
 | `blackbox` | Checks every URL in `targets/sites.yml` from here every 30 s. |
-| `postgres-exporter`, `mariadb-exporter` | Database metrics, as the read-only users `metrics` (Postgres `pg_monitor`, MariaDB `PROCESS, BINLOG MONITOR, SLAVE MONITOR`), 3 connections each. |
+| `postgres-exporter`, `mariadb-exporter`, `mongodb-exporter` | Database metrics, as the read-only users `metrics` (Postgres `pg_monitor`, MariaDB `PROCESS, BINLOG MONITOR, SLAVE MONITOR`, 3 connections each; MongoDB `clusterMonitor` and `read` on `local`). |
 
 Alerts (11 rules in `rules.yml`, all to `#t4a-server` through the "t4a server" Slack app,
 `SLACK_BOT_TOKEN` from `/etc/t4a-slack.env`): site or API down 3 min, slow over 5 s, certificate
@@ -172,7 +223,7 @@ Summaries are Go templates (`{{ $labels.name }}`); Grafana does not expand envir
 in rule files, so a `$` stays as it is.
 
 Not in git, only on the server:
-- `/srv/monitoring/.env` (mode 600): `PG_METRICS_PASSWORD`, `MARIADB_METRICS_PASSWORD`, `GF_SECURITY_ADMIN_PASSWORD`.
+- `/srv/monitoring/.env` (mode 600): `PG_METRICS_PASSWORD`, `MARIADB_METRICS_PASSWORD`, `MONGO_METRICS_PASSWORD`, `GF_SECURITY_ADMIN_PASSWORD`.
 - `/srv/edge/dynamic/ingest-auth.yml`: basic auth `t2` for https://ingest.time-4-action.com; the
   password is in `/root/ingest-login` and in `/data/stack/monitoring/.env` on t2.
 
@@ -218,7 +269,7 @@ Two independent copies, both on Hetzner Storage Box `u578499` (`u578499.your-sto
 - State: `ssh t4a 'cd /srv/postgres && docker compose exec -u postgres postgres pgbackrest --stanza=main info'`
 
 **2. restic, nightly dumps and files** (repo `restic/t4a-production`, `/root/.restic-password`)
-- `/etc/cron.d/t4a-backup` runs `t4a-backup` at 04:00 (after rokomet's 03:30 `app.db` copy): `pg_dump` of every database to `/var/backups/postgres`, `mariadb-dump` of every MariaDB database plus users and grants to `/var/backups/mariadb`, then restic of those dumps, `/srv` (every `.env`, compose file, cert, `pgbackrest-ssh`, WordPress files), `/etc/cron.d` and `/usr/local/bin`. Keeps 7 daily, 4 weekly, 6 monthly; Sundays reads back 5 %. Log: `/var/log/t4a-backup.log`.
+- `/etc/cron.d/t4a-backup` runs `t4a-backup` at 04:00 (after rokomet's 03:30 `app.db` copy): `pg_dump` of every database to `/var/backups/postgres`, `mariadb-dump` of every MariaDB database plus users and grants to `/var/backups/mariadb`, `mongodump` of every MongoDB database (users included) to `/var/backups/mongo/all.archive.gz`, then restic of those dumps, `/srv` (every `.env`, compose file, cert, `pgbackrest-ssh`, WordPress files), `/etc/cron.d` and `/usr/local/bin`. Keeps 7 daily, 4 weekly, 6 monthly; Sundays reads back 5 %. Log: `/var/log/t4a-backup.log`.
 
 **Keep copies outside t4a** of `/root/.restic-password` and `PGBACKREST_REPO1_CIPHER_PASS` from `/srv/postgres/.env` (password manager). Without them neither backup can be read.
 
@@ -248,5 +299,6 @@ One database from last night's dump instead:
 ```
 export RESTIC_REPOSITORY=sftp:storagebox:restic/t4a-production RESTIC_PASSWORD_FILE=/root/.restic-password
 restic dump latest /var/backups/postgres/<db>.dump | docker exec -i postgres-postgres-1 pg_restore -U postgres -d <db> --clean
+restic dump latest /var/backups/mongo/all.archive.gz | (cd /srv/mongo && docker compose exec -T mongo sh -c 'mongorestore -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --archive --gzip --drop --nsInclude "<db>.*"')
 restic restore latest --target /tmp/restore --include /srv/<app>    # files
 ```
