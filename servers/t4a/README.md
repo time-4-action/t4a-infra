@@ -25,7 +25,7 @@ scp edge/dynamic/*.yml t4a:/srv/edge/dynamic/     # picked up live, no restart
 ssh t4a 'cd /srv/edge && docker compose up -d'
 ```
 - `dynamic/tls.yml`: one Cloudflare origin cert per zone in `/srv/edge/certs/<zone>/`, picked by SNI.
-- `dynamic/patrik-assets.yml`: the `patrik-assets` bucket behind `assets.patrik-international.com` and
+- `dynamic/patrik-assets.yml`: the `t4a` bucket (hel1; was `patrik-assets` in fsn1 until November 2026) behind `assets.patrik-international.com` and
   `dev-warranty-assets.time-4-action.com`, and the warranty form's old upload links
   (`/warranty/wp-content/uploads/arforms/userfiles/` → `/archive/warranty/` in the bucket), as nginx did on t2.
 - `dynamic/middlewares.yml`: `cloudflare-only` (403 unless from https://www.cloudflare.com/ips/; Docker-published ports skip ufw) and `compress`, on every route. If Cloudflare changes its ranges, update this file and `traefik.yml`.

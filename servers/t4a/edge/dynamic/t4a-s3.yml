@@ -1,7 +1,8 @@
 # The t4a bucket (Hetzner Object Storage, hel1) behind our own name: https://s3.time-4-action.com/<key>
 # serves https://t4a.hel1.your-objectstorage.com/<key>. Read-only: only GET and HEAD are routed; apps upload
 # straight to the Hetzner endpoint with their keys. Cloudflare (proxied A record s3 -> 77.42.42.60) caches it.
-# Objects must be public-read in the bucket, or this answers 403.
+# Objects must be public-read in the bucket, or this answers 403. It also holds the Patrik assets (uploads/,
+# archive/, temporary/, health.json), served at assets.patrik-international.com by patrik-assets.yml.
 http:
   routers:
     t4a-s3:
