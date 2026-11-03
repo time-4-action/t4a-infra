@@ -4,13 +4,7 @@ tls:
     default:
       minVersion: VersionTLS12
   certificates:
-    - certFile: /certs/etiam.si/origin.pem
-      keyFile: /certs/etiam.si/origin.key
-    - certFile: /certs/jakamarinko.com/origin.pem
-      keyFile: /certs/jakamarinko.com/origin.key
     - certFile: /certs/patrik-international.com/origin.pem
       keyFile: /certs/patrik-international.com/origin.key
     - certFile: /certs/time-4-action.com/origin.pem
       keyFile: /certs/time-4-action.com/origin.key
-    - certFile: /certs/zupnija-pirnice.si/origin.pem
-      keyFile: /certs/zupnija-pirnice.si/origin.key

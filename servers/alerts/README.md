@@ -13,7 +13,7 @@ right away when a backup fails, and with a summary every morning at 05:00 UTC
 The daily summary (`t4a-daily`) lists each backup with its time and size, and flags
 (red) any nightly backup older than 26 h, so a backup that silently never ran also shows.
 On t4a it covers pgBackRest (latest base backup, restore window, WAL archiving),
-restic and rokomet's `app.db` copy; on t2 the restic snapshot per tag (`mariadb`,
+and restic; on t2 the restic snapshot per tag (`mariadb`,
 `wordpress`, `mongodb`, `configs`) and the last result of `t4a-backup.service`.
 On both: any cron job run through `t4a-run` whose last run failed (`/var/lib/t4a-run/<name>`;
 a fresh snapshot alone doesn't mean the job finished, see 2026-10-25 below), disk over 80 %,

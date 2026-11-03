@@ -40,16 +40,6 @@
 - targets: [https://www.the-chase-project.com/]
   labels: { name: the-chase-project.com, group: patrik, host: t2, module: http_2xx }
 
-# ── Other sites on t4a ──
-- targets: [https://jakamarinko.com/]
-  labels: { name: jakamarinko.com, group: other, host: hetzner, module: http_2xx }
-- targets: [https://zupnija-pirnice.si/]
-  labels: { name: zupnija-pirnice.si, group: other, host: hetzner, module: http_2xx }
-- targets: [https://rokomet.etiam.si/]
-  labels: { name: rokomet stats, group: other, host: hetzner, module: http_2xx }
-- targets: [https://ld-docs.etiam.si/]
-  labels: { name: ld-docs, group: other, host: hetzner, module: http_2xx }
-
 # ── Ops tools (behind the ops login) ──
 - targets: [https://pghero.time-4-action.com/]
   labels: { name: PgHero, group: ops, host: hetzner, module: http_login }
