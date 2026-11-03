@@ -1,0 +1,42 @@
+# The patrik-assets bucket (Hetzner Object Storage) behind Patrik's own names, as nginx on t2 did it:
+# assets.patrik-international.com and dev-warranty-assets.time-4-action.com serve the bucket as it is, and the
+# old warranty upload links (from the WordPress form before patrik-warranty-form) go to their copies under
+# /archive/warranty/ in the bucket. The form itself is routed by its own compose labels (/srv/patrik-warranty).
+http:
+  routers:
+    patrik-assets:
+      rule: Host(`assets.patrik-international.com`) || Host(`dev-warranty-assets.time-4-action.com`)
+      entryPoints: [websecure]
+      service: patrik-assets
+      middlewares: [patrik-assets-headers]
+      tls: {}
+    patrik-warranty-archive:
+      rule: (Host(`patrik-international.com`) || Host(`www.patrik-international.com`)) && PathPrefix(`/warranty/wp-content/uploads/arforms/userfiles/`)
+      # Above the form's router on the same hosts; the maintenance down page (100000) still wins.
+      priority: 1000
+      entryPoints: [websecure]
+      service: patrik-assets
+      middlewares: [patrik-warranty-archive-path, patrik-assets-headers]
+      tls: {}
+
+  middlewares:
+    patrik-warranty-archive-path:
+      replacePathRegex:
+        regex: ^/warranty/wp-content/uploads/arforms/userfiles/(.*)
+        replacement: /archive/warranty/$1
+    # The bucket is public: never pass a visitor's Authorization on, and drop S3's request ids.
+    patrik-assets-headers:
+      headers:
+        customRequestHeaders:
+          Authorization: ""
+        customResponseHeaders:
+          x-amz-request-id: ""
+          x-amz-id-2: ""
+
+  services:
+    patrik-assets:
+      loadBalancer:
+        # The bucket answers to its own name (Host and SNI), not to ours.
+        passHostHeader: false
+        servers:
+          - url: https://patrik-assets.fsn1.your-objectstorage.com
