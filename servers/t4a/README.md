@@ -4,9 +4,8 @@
 (`/swapfile`, `vm.swappiness=10`), 75 GB disk. SSH as `root` (admin) or `deploy`
 (CI, in the `docker` group). Hostname `time-4-action-production`.
 
-Runs jakamarinko (`/srv/jakamarinko`), rokomet-stats (`/srv/rokomet-stats`) and
-ld-docs (`/srv/ld-docs`). Each app deploys itself from its own repo; this folder
-holds only the server-wide parts in `/srv/edge`, `/srv/postgres`, `/srv/mariadb`, `/srv/mongo`,
+Runs only Time 4 Action apps (today `patrik-warranty-form` in `/srv/patrik-warranty`). Each app
+deploys itself from its own repo; this folder holds only the server-wide parts in `/srv/edge`, `/srv/postgres`, `/srv/mariadb`, `/srv/mongo`,
 `/srv/wordpress`, the ops tools `/srv/pghero` and `/srv/backrest`, `/srv/maintenance`, the
 monitoring for both servers in `/srv/monitoring`, and the backups.
 None of it is deployed by CI: change it here, open a pull request, then copy it
@@ -281,7 +280,7 @@ it from here. Backrest only reads it (browse and restore).
 - State: `ssh t4a 'cd /srv/postgres && docker compose exec -u postgres postgres pgbackrest --stanza=main info'`
 
 **2. restic, nightly dumps and files** (repo `restic/t4a-production`, `/root/.restic-password`)
-- `/etc/cron.d/t4a-backup` runs `t4a-backup` at 04:00 (after rokomet's 03:30 `app.db` copy): `pg_dump` of every database to `/var/backups/postgres`, `mariadb-dump` of every MariaDB database plus users and grants to `/var/backups/mariadb`, `mongodump` of every MongoDB database (users included) to `/var/backups/mongo/all.archive.gz`, then restic of those dumps, `/srv` (every `.env`, compose file, cert, `pgbackrest-ssh`, WordPress files), `/etc/cron.d` and `/usr/local/bin`. Keeps 7 daily, 4 weekly, 6 monthly; Sundays reads back 5 %. Log: `/var/log/t4a-backup.log`.
+- `/etc/cron.d/t4a-backup` runs `t4a-backup` at 04:00: `pg_dump` of every database to `/var/backups/postgres`, `mariadb-dump` of every MariaDB database plus users and grants to `/var/backups/mariadb`, `mongodump` of every MongoDB database (users included) to `/var/backups/mongo/all.archive.gz`, then restic of those dumps, `/srv` (every `.env`, compose file, cert, `pgbackrest-ssh`, WordPress files), `/etc/cron.d` and `/usr/local/bin`. Keeps 7 daily, 4 weekly, 6 monthly; Sundays reads back 5 %. Log: `/var/log/t4a-backup.log`.
 
 **Keep copies outside t4a** of `/root/.restic-password` and `PGBACKREST_REPO1_CIPHER_PASS` from `/srv/postgres/.env` (password manager). Without them neither backup can be read.
 

@@ -97,15 +97,6 @@ def restic_t4a():
     bad(text + ", too old") if age_h(t) > MAX_AGE_H else ok(text)
 
 
-def rokomet():
-    files = glob.glob("/srv/rokomet-stats/backups/app-*.db")
-    if not files:
-        return bad("rokomet app.db copy: none found")
-    t = datetime.fromtimestamp(max(os.path.getmtime(f) for f in files), timezone.utc)
-    text = f"rokomet app.db copy: {when(t)}"
-    bad(text + ", too old") if age_h(t) > MAX_AGE_H else ok(text)
-
-
 # --- t2 (T-2) ---
 
 def restic_t2():
@@ -175,7 +166,6 @@ if os.path.exists("/srv/postgres/compose.yml"):
     name = socket.gethostname() + " (Hetzner)"
     check("pgBackRest", pgbackrest)
     check("restic", restic_t4a)
-    check("rokomet", rokomet)
 elif os.path.exists("/etc/t4a-backup.env"):
     name = socket.gethostname() + " (T-2)"
     check("t4a-backup.service", unit_t2)
