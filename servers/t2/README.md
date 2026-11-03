@@ -114,7 +114,8 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
 
 ## Moving to t4a
 
-The warranty form's cutover, step by step with data checks and rollback: [`warranty-cutover.md`](warranty-cutover.md).
+The plan for moving everything, in waves, with the copy-and-compare commands: [`migration.md`](migration.md).
+The warranty form's cutover (wave 2), step by step with data checks and rollback: [`warranty-cutover.md`](warranty-cutover.md).
 
 1. **Decide first**: what to do with `patrik-test` and its IONOS database. (MongoDB: runs on t4a since 2026-11-02;
    no outside host has connected since September.)
