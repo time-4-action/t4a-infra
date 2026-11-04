@@ -43,7 +43,7 @@ Beszel and Uptime Kuma still run here; Grafana covers what they show, so they ca
 ## Inventory (checked 2026-10-29)
 
 Everything that runs on t2, for the move to t4a. nginx on 80/443 fronts it all; Cloudflare is in front of nginx
-(origin certs in `/etc/cloudflare-origin/{patrik-international,the-chase-project,time-4-action}`).
+(origin certs in `/etc/cloudflare-origin/{the-chase-project,time-4-action}`).
 Docker's published ports are blocked from outside by `t4a-docker-ports.service` (a `DOCKER-USER` iptables chain).
 
 ### Docker apps (`/data/stack/apps/...`, one compose project each)
@@ -58,7 +58,6 @@ Docker's published ports are blocked from outside by `t4a-docker-ports.service` 
 | t4a-chat-ui | 3003 (host network) | `chat.` | `.env.local`: Anthropic, ElevenLabs, Deepgram, Google, Auth0. Image is `:latest` |
 | t4a-mk-automation | 3000 | `mkauto.` | 737 MB in its dir; image has no tag. A copy of `.env` is in `time-4-action/patrik/` |
 | t4a-mcp + t4a-chromadb | 8000, 8001 (local) | `mcp.` | `mcp/chroma_db`, `bm25_indexes`, `uploads` (80 MB) |
-| patrik-warranty-form | 4000 | `patrik-international.com`, `dev-warranty.`, `warranty-preview.` | Image has no tag. Needs S3, Mongo, Google service account, SMTP, Mapbox, Sentry |
 | Uptime Kuma, Beszel | 3333, 8090 | `status.`, `monitor.` | Volume `uptime-kuma` 820 MB. Optional, Grafana replaces them |
 | Alloy | none | none | See Monitoring above |
 
@@ -69,8 +68,8 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
 - **MariaDB 10.5.29**, datadir `/mnt/vdc/mysql`, only the two WordPress databases below (listens on `*:3306`, firewalld does not open it).
 - **MongoDB**, `/data/mongo` (18 MB), auth on, listens on `0.0.0.0:27017`. firewalld allows 27017 only from 176.76.128.14,
   176.76.102.199, 87.119.132.30, 176.76.130.2 and 87.119.143.210, and drops 92.118.39.57; the last outside
-  connection in the log was 2026-09-22. Databases: `t4a` (admin, chat, mcp, partner-portal-api), `patrik`
-  (warranty form), `recharge` (recharge-si). t4a has its own Mongo now (`servers/t4a/README.md`, "MongoDB").
+  connection in the log was 2026-09-22. Databases: `t4a` (admin, chat, mcp, partner-portal-api), `recharge`
+  (recharge-si). `patrik` (warranty form) was dropped on 2026-11-04. t4a has its own Mongo now (`servers/t4a/README.md`, "MongoDB").
 - **PHP-FPM**: default pool PHP 8.5 (`www.sock`) serves both WordPress sites. A PHP 8.2 `patrik-web` pool (`php82-php-fpm`)
   runs but no vhost uses it.
 - **autodiscover.service**: Node app in `/mnt/vdc/www/autodiscover-server`, 127.0.0.1:8443, with `/mnt/vdc/www/mail/config-v1.1.xml`
@@ -98,9 +97,9 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
   `.htaccess` has Apache rules that nginx ignores but t4a's Apache will apply (including a `patrik-windsurf.com` redirect).
 - `the-chase-project` plugins: akismet, favicon-by-realfavicongenerator, insta-gallery (Instagram token), limit-login-attempts-reloaded,
   social-icons-widget-by-wpzoom, `strato-assistant` and mu-plugin `automation-by-installatron.php` (STRATO leftovers, can go).
-- `patrik-international.com` is not WordPress: it proxies to the warranty form, with a rewrite from
-  `/warranty/wp-content/uploads/arforms/userfiles/` to the Hetzner bucket `patrik-assets` (`/archive/warranty/`);
-  `assets.patrik-international.com` and `dev-warranty-assets.` proxy the same bucket.
+- `patrik-international.com` (the warranty form) is no longer on t2: it moved to t4a on 2026-11-03, and on
+  2026-11-04 its container, image, folder, `patrik` database, nginx vhosts (`patrik-international.com`,
+  `dev-warranty.`, `dev-warranty-assets.`, `warranty-preview.`), origin cert and logs were removed from t2.
 - nginx rules to carry over: deny `wp-config.php`, readme, license, dotfiles (except `.well-known`) and PHP in `uploads/`;
   `expires max` on static files; `client_max_body_size 64M`; `fastcgi_read_timeout 300`; X-Frame-Options, nosniff, Referrer-Policy.
 - PHP limits on t2 are 2 MB upload, 8 MB post, 128 MB memory. The t4a template uses 64 / 64 / 256 MB.
@@ -114,7 +113,7 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
 
 ## Moving to t4a
 
-The warranty form's cutover, step by step with data checks and rollback: [`warranty-cutover.md`](warranty-cutover.md).
+The warranty form's cutover, step by step with data checks and rollback: [`warranty-cutover.md`](warranty-cutover.md) (done).
 
 1. **Decide first**: what to do with `patrik-test` and its IONOS database. (MongoDB: runs on t4a since 2026-11-02;
    no outside host has connected since September.)
