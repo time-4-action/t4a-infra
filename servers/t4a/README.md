@@ -4,7 +4,8 @@
 (`/swapfile`, `vm.swappiness=10`), 75 GB disk. SSH as `root` (admin) or `deploy`
 (CI, in the `docker` group). Hostname `time-4-action-production`.
 
-Runs only Time 4 Action apps (today `patrik-warranty-form` in `/srv/patrik-warranty`). Each app
+Runs only Time 4 Action apps (today `patrik-warranty-form` in `/srv/patrik-warranty`, and the
+WordPress sites `patrik-web` and `the-chase-project` in `/srv/wordpress`). Each app
 deploys itself from its own repo; this folder holds only the server-wide parts in `/srv/edge`, `/srv/postgres`, `/srv/mariadb`, `/srv/mongo`,
 `/srv/wordpress`, the ops tools `/srv/pghero` and `/srv/backrest`, `/srv/maintenance`, the
 monitoring for both servers in `/srv/monitoring`, and the backups.
@@ -149,14 +150,29 @@ the database is in the nightly MariaDB dump.
 - PHP limits per site in its `php.ini` (64 MB uploads, 256 MB memory).
 - wp-config.php written on first start reads the database settings from `.env`, forces HTTPS
   behind the proxy and sets `DISALLOW_FILE_EDIT`.
+- `apache.conf` (→ `/srv/wordpress/apache.conf`, mounted into every site): real visitor IP from
+  `CF-Connecting-IP`, 403 for PHP in `uploads/`, `wp-config.php`, readme/licence files and dotfiles,
+  one-year caching of static files, nosniff / X-Frame-Options / Referrer-Policy. After a change:
+  `scp wordpress/apache.conf t4a:/srv/wordpress/` and `docker compose restart` in each site's folder.
 - WP-CLI: `docker run --rm --network mariadb --user 33:33 --env-file /srv/wordpress/<site>/.env -e WORDPRESS_DB_HOST=mariadb -v /srv/wordpress/<site>/html:/var/www/html wordpress:cli-2.12.0-php8.5 wp <command>`
 - Moving an existing site in: copy its files into `html/`, import its dump into `wp_<site>`
   (`docker compose exec -T mariadb sh -c 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" wp_<site>' < dump.sql`),
-  and point its own `wp-config.php` at `DB_HOST mariadb` with the user and password from `.env`.
+  and point its own `wp-config.php` at `DB_HOST mariadb` with `getenv('WORDPRESS_DB_USER')` and
+  `getenv('WORDPRESS_DB_PASSWORD')`, plus the two lines from `WORDPRESS_CONFIG_EXTRA` in
+  `_template/compose.yml` (without the HTTPS line, wp-admin and is_ssl() break behind Traefik).
+  Review its `.htaccess`: nginx ignored it, Apache applies it. Worked example: `servers/t2/wordpress-cutover.md`.
 - Remove a site: `docker compose down` in its folder, delete the folder, `DROP DATABASE wp_<site>; DROP USER wp_<site>@'%';`.
 
 Tested 2026-10-25 with a throwaway site: install, a published post served with 200, routing
 through Traefik, backup to the Storage Box and a restore of its database. Then removed.
+
+Sites (copied from t2 on 2026-11-05; DNS still points at t2 until the cutover in
+`servers/t2/wordpress-cutover.md`):
+
+| Site | Domains | Database |
+|---|---|---|
+| `patrik-web` | `patrik-web.time-4-action.com` | `wp_patrik_web` (prefix `wp_`) |
+| `the-chase-project` | `www.the-chase-project.com`, `the-chase-project.com` | `wp_the_chase_project` (prefix `tgnh_`) |
 
 ## Ops tools (`pghero/` → `/srv/pghero`, `backrest/` → `/srv/backrest`)
 

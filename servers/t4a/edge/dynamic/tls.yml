@@ -8,3 +8,5 @@ tls:
       keyFile: /certs/patrik-international.com/origin.key
     - certFile: /certs/time-4-action.com/origin.pem
       keyFile: /certs/time-4-action.com/origin.key
+    - certFile: /certs/the-chase-project.com/origin.pem
+      keyFile: /certs/the-chase-project.com/origin.key

@@ -90,6 +90,10 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
 | `the-chase-project` | `www.the-chase-project.com` (apex redirects to www) | 6.7.2 (outdated), `de_DE` | twentytwentyfive | `wp_the_chase_project` 11 MB (`tgnh_`) | 119 MB |
 | `patrik-test` | no vhost | 5.1.15 | Enfold | **remote IONOS database** (`db5002447720.hosting-data.io`), not on t2 | 2.6 GB |
 
+`patrik-web` and `the-chase-project` were copied to t4a on 2026-11-05 and run there; DNS still points
+here until the cutover: [`wordpress-cutover.md`](wordpress-cutover.md). `patrik-test` is not moved
+(decided 2026-11-05): it stays on t2 until t2 is retired. Its IONOS database is outside our servers.
+
 - `patrik-web` plugins: WPML (`sitepress-multilingual-cms`, `wpml-cms-nav`, `wpml-media-translation`; the licence key is tied
   to the domain), antispam-bee, classic-editor, duplicate-post, facebook-page-likebox, tinymce-advanced. Permalinks
   `/blog/%year%/%monthnum%/%day%/%postname%/`. Its docroot also holds a 76 MB `db577760631_2024-05-20.dump`, `phpinfo.php`,
@@ -115,14 +119,13 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
 
 The warranty form's cutover, step by step with data checks and rollback: [`warranty-cutover.md`](warranty-cutover.md) (done).
 
-1. **Decide first**: what to do with `patrik-test` and its IONOS database. (MongoDB: runs on t4a since 2026-11-02;
+1. **Decided**: `patrik-test` is dropped (2026-11-05). (MongoDB: runs on t4a since 2026-11-02;
    no outside host has connected since September.)
-2. **Data**: `pg_dump` Recharge Hub; `mongodump` Mongo; `mariadb-dump` the two WP databases; copy ChromaDB, `export/api/data`,
+2. **Data**: `pg_dump` Recharge Hub; `mongodump` Mongo; copy ChromaDB, `export/api/data`,
    `mk-automation`, the `.env` files. Do a trial restore on t4a.
-3. **WordPress**, per site: `sh /srv/wordpress/new-site.sh <site> <domain>...` on t4a, copy files into `html/` (`chown 33:33`),
-   import the dump, point `wp-config.php` at `DB_HOST mariadb` with the user from `.env`, keep the table prefix. Review `.htaccess`.
-   Test with a hosts-file override before DNS. Check WPML and Enfold on PHP 8.5.
-4. **TLS**: copy the `patrik-international` and `the-chase-project` Cloudflare origin certs to `/srv/edge/certs`.
+3. **WordPress**: both sites copied and checked on t4a (2026-11-05); DNS switch and the rest in
+   [`wordpress-cutover.md`](wordpress-cutover.md).
+4. **TLS**: both origin certs (`patrik-international.com`, `the-chase-project.com`) are on t4a.
 5. **Apps**: bring up each app on t4a behind Traefik and add its URL to `servers/t4a/monitoring/targets/sites.yml`.
    Move autodiscover/autoconfig, or retire them.
 6. **Cutover**: lower DNS TTLs a day ahead, then repoint the A records (proxied) to t4a, site by site. Do not touch MX.

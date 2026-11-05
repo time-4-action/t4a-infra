@@ -19,6 +19,8 @@ services:
     volumes:
       - ./html:/var/www/html
       - ./php.ini:/usr/local/etc/php/conf.d/zz-site.ini:ro
+      # Shared by all sites: protections, real client IP, caching, security headers.
+      - ../apache.conf:/etc/apache2/conf-enabled/zz-t4a.conf:ro
     networks:
       - edge
       - mariadb
