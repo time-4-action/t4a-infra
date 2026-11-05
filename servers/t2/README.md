@@ -90,8 +90,8 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
 | `the-chase-project` | `www.the-chase-project.com` (apex redirects to www) | 6.7.2 (outdated), `de_DE` | twentytwentyfive | `wp_the_chase_project` 11 MB (`tgnh_`) | 119 MB |
 | `patrik-test` | no vhost | 5.1.15 | Enfold | **remote IONOS database** (`db5002447720.hosting-data.io`), not on t2 | 2.6 GB |
 
-`patrik-web` and `the-chase-project` were copied to t4a on 2026-11-05 and run there; DNS still points
-here until the cutover: [`wordpress-cutover.md`](wordpress-cutover.md). `patrik-test` is not moved
+`patrik-web` and `the-chase-project` moved to t4a on 2026-11-05 (DNS switched the same day). Their
+copies here still run until the vhosts are disabled: [`wordpress-cutover.md`](wordpress-cutover.md). `patrik-test` is not moved
 (decided 2026-11-05): it stays on t2 until t2 is retired. Its IONOS database is outside our servers.
 
 - `patrik-web` plugins: WPML (`sitepress-multilingual-cms`, `wpml-cms-nav`, `wpml-media-translation`; the licence key is tied

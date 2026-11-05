@@ -12,9 +12,9 @@ database is at IONOS). Its files stay on t2 until t2 is retired.
 | Step | State |
 |---|---|
 | 1. Sites created on t4a, files and databases copied, checked | done 2026-11-05 |
-| 2. Final sync (only if something changed on t2 since step 1) | at cutover |
-| 3. DNS to t4a | at cutover |
-| 4. After: monitoring, t2 sites stopped | after cutover |
+| 2. Final sync (only if something changed on t2 since step 1) | not needed: no file or content-table change on t2 |
+| 3. DNS to t4a | done 2026-11-05 09:32 (the-chase-project) and 09:34 UTC (patrik-web) |
+| 4. After: monitoring done; WPML licence, Chase updates, t2 vhosts | open |
 
 ## 1. Copy (done 2026-11-05)
 
@@ -73,22 +73,37 @@ The check compares every table, so run it right after the import. Once the t4a s
 requests, `*_options` drifts (transients, cron) and only the content tables (posts, postmeta,
 terms, users, comments) stay comparable: pass them as extra arguments.
 
-## 3. DNS
+## 3. DNS (done 2026-11-05)
 
-The records are proxied, so the switch takes effect in seconds (TTL does not matter). In Cloudflare
-(`cf` CLI), one site at a time:
+Proxied records, so each switch took effect in seconds. Done with the `cf` CLI (Cloudflare's own,
+`npm i -g cf`, `cf auth login --no-browser`); the records before the change were saved first
+(`cf dns records list -z <zone>`). t4a's records point at `production.time-4-action.com` (A → `77.42.42.60`),
+as the other t4a hosts do.
 
-- `time-4-action.com` zone: A `patrik-web` → `77.42.42.60`, proxied.
-- `the-chase-project.com` zone: A `@` and A `www` (or the CNAME `www` points at `@`) → `77.42.42.60`, proxied.
+| Zone | Record | Before | After |
+|---|---|---|---|
+| `the-chase-project.com` | CNAME `@` (id `4f06f53dada9dd2621db5b31565204fe`) | `t2.time-4-action.com` | `production.time-4-action.com`, proxied |
+| `the-chase-project.com` | CNAME `www` → `the-chase-project.com` | unchanged, follows `@` | |
+| `time-4-action.com` | CNAME `patrik-web` (id `95f93eafb451693175dcb0463e9d20c2`) | none: served by the wildcard `*` → `t2.time-4-action.com` | new, `production.time-4-action.com`, proxied |
 
-Then check in a browser: home page, a post, an image, `/wp-admin/` login, and (patrik-web) the
-language switcher. `docker compose logs -f wordpress` in the site's folder shows the requests.
+The wildcard `*.time-4-action.com` → t2 stays: it still serves api, admin, b2b, chat, mcp, mkauto,
+export and recharge-*. Checked after the switch through Cloudflare: home page, posts, archives,
+feeds, images, `/wp-admin/` (302 to an `https` login), `readme.html` 403, the requests in the t4a
+container logs with the visitor's real IP; no 5xx and no PHP fatals. The t2 apps on the wildcard
+still answer.
 
-**Rollback**: point the same records back at `194.28.111.245`. t2 is untouched until step 4.
+**Rollback** (t2 still serves both sites until step 4):
+
+```sh
+cf dns records edit 4f06f53dada9dd2621db5b31565204fe -z a11cc5b6801a733c0927d6ba6a515c28 --body '{"content":"t2.time-4-action.com"}'
+cf dns records delete 95f93eafb451693175dcb0463e9d20c2 -z dd5049103e6509c26aa0e6576c995d7b   # back to the wildcard
+```
+
+After a rollback, anything written on t4a in the meantime (comments, edits) is only on t4a.
 
 ## 4. After
 
-- Add both URLs to `servers/t4a/monitoring/targets/sites.yml`.
+- Both URLs are in `servers/t4a/monitoring/targets/sites.yml` (`host: hetzner`), probes up (done).
 - `patrik-web`: check WPML still shows its licence as registered (it is tied to the domain, which
   does not change).
 - `the-chase-project`: update core (6.7.2) and plugins from wp-admin; the STRATO leftovers

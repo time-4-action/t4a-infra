@@ -166,7 +166,7 @@ the database is in the nightly MariaDB dump.
 Tested 2026-10-25 with a throwaway site: install, a published post served with 200, routing
 through Traefik, backup to the Storage Box and a restore of its database. Then removed.
 
-Sites (copied from t2 on 2026-11-05; DNS still points at t2 until the cutover in
+Sites (moved from t2 and live here since 2026-11-05; DNS records and rollback in
 `servers/t2/wordpress-cutover.md`):
 
 | Site | Domains | Database |
