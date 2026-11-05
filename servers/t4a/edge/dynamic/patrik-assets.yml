@@ -1,7 +1,9 @@
-# The patrik-assets bucket (Hetzner Object Storage) behind Patrik's own names, as nginx on t2 did it:
-# assets.patrik-international.com and dev-warranty-assets.time-4-action.com serve the bucket as it is, and the
-# old warranty upload links (from the WordPress form before patrik-warranty-form) go to their copies under
-# /archive/warranty/ in the bucket. The form itself is routed by its own compose labels (/srv/patrik-warranty).
+# Patrik's assets (Hetzner Object Storage) behind Patrik's own names, as nginx on t2 did it:
+# assets.patrik-international.com and dev-warranty-assets.time-4-action.com serve the t4a bucket (hel1) as it
+# is, and the old warranty upload links (from the WordPress form before patrik-warranty-form) go to their
+# copies under /archive/warranty/ in the bucket. Moved from patrik-assets (fsn1) in November 2026, same keys;
+# the t4a bucket is also served at s3.time-4-action.com (t4a-s3.yml). The form itself is routed by its own
+# compose labels (/srv/patrik-warranty).
 http:
   routers:
     patrik-assets:
@@ -39,4 +41,4 @@ http:
         # The bucket answers to its own name (Host and SNI), not to ours.
         passHostHeader: false
         servers:
-          - url: https://patrik-assets.fsn1.your-objectstorage.com
+          - url: https://t4a.hel1.your-objectstorage.com
