@@ -82,12 +82,12 @@ connections.
 
 ## MongoDB (`mongo/` → `/srv/mongo`)
 
-MongoDB 8.2 for the apps that come from t2 with it; new apps use Postgres. Three databases:
+MongoDB 8.2 for the apps that come from t2 with it; new apps use Postgres. Two databases (the warranty
+form's `patrik` moved on to Postgres, database `patrik-warranty`, and was dropped on 2026-11-04):
 
 | Database | Apps | Size on t2 (2026-11-02) |
 |---|---|---|
 | `t4a` | t4a-admin, t4a-chat-ui, t4a-mcp, t4a-partner-portal-api (shared, so they move together) | 34 collections, 31k documents |
-| `patrik` | patrik-warranty-form | 4 collections, 113 documents |
 | `recharge` | recharge-si | 3 collections, 5.3k documents |
 
 No published port: apps join the external `mongo`
@@ -120,7 +120,7 @@ Do this before deploying the new `monitoring/compose.yml` and `t4a-backup`, whic
 Moving a database from t2, streamed from t2 to t4a through your machine (nothing is staged on t2's
 full `/data`). It reads with the app's own connection string from its `.env` on t2, so no password is
 typed or shown; `--drop` makes it repeatable. `<env>` is the app's file under `/data/stack/apps/`:
-`time-4-action/mcp/.env` (t4a), `patrik-international/warranty/.env` (patrik), `recharge-si/.env` (recharge).
+`time-4-action/mcp/.env` (t4a), `recharge-si/.env` (recharge).
 ```
 ssh t4a-t2 "uri=\$(sudo grep -oE 'mongodb://[^[:space:]\"'\'']+' /data/stack/apps/<env> | head -1); mongodump --quiet --uri \"\$uri\" --db <database> --archive --gzip" \
   | ssh t4a "cd /srv/mongo && docker compose exec -T mongo sh -c 'mongorestore --quiet -u \"\$MONGO_INITDB_ROOT_USERNAME\" -p \"\$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --archive --gzip --drop'"

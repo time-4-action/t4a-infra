@@ -34,7 +34,7 @@
 - targets: [https://www.patrikinternational.com/en/]
   labels: { name: patrikinternational.com, group: patrik, host: t2, module: http_2xx }
 - targets: [https://patrik-international.com/warranty/]
-  labels: { name: Warranty form, group: patrik, host: t2, module: http_2xx }
+  labels: { name: Warranty form, group: patrik, host: hetzner, module: http_2xx }
 - targets: [https://assets.patrik-international.com/health.json]
   labels: { name: Patrik assets (S3), group: patrik, host: hetzner-s3, module: http_2xx }
 - targets: [https://www.the-chase-project.com/]

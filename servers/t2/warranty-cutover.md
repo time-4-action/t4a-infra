@@ -191,14 +191,15 @@ ssh t4a-t2 'cd /data/stack/apps/patrik-international/warranty && sudo docker com
 
 ## After, the same day
 
-- [ ] Merge [patrik-warranty-form #25](https://github.com/time-4-action/patrik-warranty-form/pull/25)
+- [x] Merge [patrik-warranty-form #25](https://github.com/time-4-action/patrik-warranty-form/pull/25)
   (`dev` → `main`): the first CI deploy to t4a, with the banner. Approve the production deploy
   when asked; it rolls back by itself if the health check fails.
-- [ ] Monitoring: in `servers/t4a/monitoring/targets/sites.yml`, `host: t2` → `host: hetzner`
+- [x] Monitoring: in `servers/t4a/monitoring/targets/sites.yml`, `host: t2` → `host: hetzner`
   for "Warranty form"; PR it, copy it to `/srv/monitoring/targets/`.
 - [ ] Merge [t4a-infra #16](https://github.com/time-4-action/t4a-infra/pull/16) (already deployed).
-- [ ] In a few weeks: remove the stopped container and t2's `patrik` database, once t4a's
-  nightly backups have run for a while.
+- [x] Removed on 2026-11-04, after the form moved on from MongoDB to Postgres on t4a (database
+  `patrik-warranty`, patrik-warranty-form #26/#28): t2's container, image, folder, `patrik` database,
+  nginx vhosts, origin cert and logs, and t4a's `patrik` Mongo database. Rollback below no longer applies.
 
 ## Rollback
 
@@ -216,7 +217,7 @@ so going back loses nothing.
 | What | Where |
 |---|---|
 | Form on t4a | `/srv/patrik-warranty` (`docker-compose.yml`, `.env`) |
-| Warranty data on t4a | database `patrik` in `/srv/mongo` (volume `mongo_mongo_data`), nightly in restic |
-| Form on t2 | `/data/stack/apps/patrik-international/warranty`, data in `/data/mongo` |
+| Warranty data on t4a | Postgres database `patrik-warranty` in `/srv/postgres` (since 2026-11-04; nightly + point-in-time backups) |
+| Form on t2 | removed on 2026-11-04 |
 | Bucket routes, certificate | `/srv/edge/dynamic/patrik-assets.yml`, `/srv/edge/certs/patrik-international.com/` |
 | More detail | `docs/deployment.md` ("Production on t4a") in patrik-warranty-form; `servers/t4a/README.md` ("MongoDB") here |
