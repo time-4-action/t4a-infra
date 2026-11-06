@@ -257,7 +257,8 @@ groups:
       datasourceUid: prometheus
       model:
         refId: A
-        expr: absent_over_time(node_load1{server="t2"}[5m]) or absent_over_time(node_load1{server="hetzner"}[5m])
+        # t2 was retired on 2026-11-06 (servers/t2/README.md); only t4a reports now.
+        expr: absent_over_time(node_load1{server="hetzner"}[5m])
         instant: true
         intervalMs: 1000
         maxDataPoints: 43200

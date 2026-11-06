@@ -311,8 +311,9 @@ in rule files, so a `$` stays as it is.
 
 Not in git, only on the server:
 - `/srv/monitoring/.env` (mode 600): `PG_METRICS_PASSWORD`, `MARIADB_METRICS_PASSWORD`, `MONGO_METRICS_PASSWORD`, `GF_SECURITY_ADMIN_PASSWORD`.
-- `/srv/edge/dynamic/ingest-auth.yml`: basic auth `t2` for https://ingest.time-4-action.com; the
-  password is in `/root/ingest-login` and in `/data/stack/monitoring/.env` on t2.
+- `/srv/edge/dynamic/ingest-auth.yml`: basic auth for https://ingest.time-4-action.com. Its only user, `t2`, was
+  revoked when t2 was retired (2026-11-06): the hash is a random password nobody knows. A new remote server
+  gets its own user here (`openssl passwd -apr1`).
 
 Cloudflare: proxied A records `grafana` and `ingest` in `time-4-action.com` → `77.42.42.60`.
 
