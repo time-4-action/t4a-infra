@@ -174,6 +174,26 @@ Sites (moved from t2 and live here since 2026-11-05; DNS records and rollback in
 | `patrik-web` | `patrik-web.time-4-action.com` | `wp_patrik_web` (prefix `wp_`) |
 | `the-chase-project` | `www.the-chase-project.com`, `the-chase-project.com` | `wp_the_chase_project` (prefix `tgnh_`) |
 
+## Website (`website/` → `/srv/website`)
+
+`time-4-action.com` and `www.time-4-action.com`: one static `index.html` (about 470 KB, everything inline), moved
+from t2 on 2026-11-06. nginx (`nginx:1.30.5-alpine`, 64 MB limit) on the `edge` network serves
+`/srv/website/html` (not in git; the nightly restic backup of `/srv` covers it) with `nginx.conf`, which
+has the same rules as on t2: apex → `https://www.time-4-action.com` (301), X-Frame-Options / nosniff /
+Referrer-Policy, 403 for dotfiles except `.well-known`, `expires max` on static files, 404 for anything else.
+
+- New page: `scp index.html t4a:/srv/website/html/` (served right away, no restart).
+- Config change: `scp website/compose.yml website/nginx.conf t4a:/srv/website/ && ssh t4a 'cd /srv/website && docker compose up -d && docker compose restart'`.
+- DNS (zone `time-4-action.com`): CNAME `@` (id `ab8bd43777aefd2a0e72b860b8d9f603`) and `www`
+  (id `f35306cbe94a1e3e228e36b40714e985`) → `production.time-4-action.com`, proxied. Before the
+  move they pointed at `t2.time-4-action.com` and `t2-web.time-4-action.com`; to roll back, edit them back with
+  `cf dns records edit <id> -z dd5049103e6509c26aa0e6576c995d7b --body '{"content":"..."}'` (t2 still has the
+  page and its vhost until t2 is retired).
+- Plain `http://`: t4a only listens on 443, so Cloudflare answers 522 for `http://` on every t4a host. For
+  these two hosts the zone's redirect rule `website_http_to_https` (phase `http_request_dynamic_redirect`,
+  ruleset `f28d81318118490a8691be0a3c0190cf`) sends `http://` to `https://www.time-4-action.com` + path + query.
+  Zone-wide "Always Use HTTPS" is off on purpose: t2 still serves plain-HTTP things (mail autoconfig).
+
 ## Ops tools (`pghero/` → `/srv/pghero`, `backrest/` → `/srv/backrest`)
 
 Two web UIs behind Traefik, both behind one basic-auth login (`ops-auth` middleware in
@@ -307,7 +327,8 @@ it from here. Backrest only reads it (browse and restore).
 T4A_BACKUP_HEARTBEAT_URL=https://...   # restic, daily
 PG_BACKUP_HEARTBEAT_URL=https://...    # pgBackRest, daily
 ```
-Point them at push monitors that alert when a ping is missing for 25 h (Uptime Kuma "Push", healthchecks.io).
+Point them at push monitors that alert when a ping is missing for 25 h (healthchecks.io or similar). Not set up yet
+(checked 2026-11-06: the file exists on neither server).
 
 ### Restore
 
