@@ -15,7 +15,7 @@ database is at IONOS). Its files stay on t2 until t2 is retired.
 | 2. Final sync (only if something changed on t2 since step 1) | not needed: no file or content-table change on t2 |
 | 3. DNS to t4a | done 2026-11-05 09:32 (the-chase-project) and 09:34 UTC (patrik-web) |
 | 4. After: monitoring, WPML licence, Chase updates | done 2026-11-06 |
-| 4. After: disable the t2 vhosts | open, from 2026-11-09 |
+| 4. After: disable the t2 vhosts | done 2026-11-06 |
 
 ## 1. Copy (done 2026-11-05)
 
@@ -123,5 +123,9 @@ After a rollback, anything written on t4a in the meantime (comments, edits) is o
     login title's dash changed with 7.x); `/wp-admin/` 302; no fatals or 500s in the container log.
   - Rollback: `docker compose down`, restore `html/` from the tarball and the dump into
     `wp_the_chase_project`, `docker compose up -d`.
-- On t2, after a few days without problems (from 2026-11-09): disable the two nginx vhosts and
-  `systemctl reload nginx` (do not delete the files; t2's restic backup keeps running until t2 is retired).
+- On t2, the two nginx vhosts are disabled (2026-11-06, ~12:05 UTC). Both access logs had no requests
+  that day, so nothing still reached t2. They were renamed to
+  `/etc/nginx/conf.d/{the-chase-project.com,patrik-web.time-4-action.com}.conf.disabled-2026-11-06`,
+  then `nginx -t` and `systemctl reload nginx`. The files, the databases and PHP-FPM are still on t2,
+  and t2's restic backup keeps running until t2 is retired. To bring them back, rename them to `.conf`
+  and reload. After the change, both sites (on t4a) and the t2 apps answered as before.
