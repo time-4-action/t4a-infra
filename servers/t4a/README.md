@@ -34,6 +34,12 @@ ssh t4a 'cd /srv/edge && docker compose up -d'
 - Never publish an app port on `0.0.0.0`: Docker bypasses ufw. Use the `edge` network, or `127.0.0.1:<port>` if something on the host needs it.
 - Metrics: the `metrics` entrypoint (`:8082`, not published) serves Prometheus metrics per router, service and entrypoint; `monitoring/` scrapes it as `traefik:8082`. Changing `traefik.yml` needs `docker compose restart traefik` (a second or two without any site).
 
+Plain `http://`: t4a only listens on 443, so without help Cloudflare answers 522 for `http://` on every t4a host.
+Cloudflare "Always Use HTTPS" (zone setting `always_use_https`) is on for `time-4-action.com`, `the-chase-project.com` and
+`patrik-international.com` (since 2026-11-06), so `http://` gets a 301 to the same `https://` URL. The hosts still on t2
+already answered `http://` with exactly that 301 from nginx, so nothing changes for them. A new zone with a site here needs it
+too: `cf zones settings edit always_use_https -z <zone-id> --body '{"value":"on"}'`.
+
 ## Postgres (`postgres/` → `/srv/postgres`)
 
 One Postgres 18 for every app, one database and owner role per app. No published
@@ -186,13 +192,15 @@ Referrer-Policy, 403 for dotfiles except `.well-known`, `expires max` on static 
 - Config change: `scp website/compose.yml website/nginx.conf t4a:/srv/website/ && ssh t4a 'cd /srv/website && docker compose up -d && docker compose restart'`.
 - DNS (zone `time-4-action.com`): CNAME `@` (id `ab8bd43777aefd2a0e72b860b8d9f603`) and `www`
   (id `f35306cbe94a1e3e228e36b40714e985`) → `production.time-4-action.com`, proxied. Before the
-  move they pointed at `t2.time-4-action.com` and `t2-web.time-4-action.com`; to roll back, edit them back with
+  move, `@` pointed at `t2.time-4-action.com` and `www` at `t2-web.time-4-action.com`. That is 89.212.89.4, an
+  Apache that is not t2, but it served the same page: identical once whitespace is ignored, and the same 404s for the
+  page's broken relative `./..._files/` links. To roll back, edit them back with
   `cf dns records edit <id> -z dd5049103e6509c26aa0e6576c995d7b --body '{"content":"..."}'` (t2 still has the
   page and its vhost until t2 is retired).
-- Plain `http://`: t4a only listens on 443, so Cloudflare answers 522 for `http://` on every t4a host. For
-  these two hosts the zone's redirect rule `website_http_to_https` (phase `http_request_dynamic_redirect`,
-  ruleset `f28d81318118490a8691be0a3c0190cf`) sends `http://` to `https://www.time-4-action.com` + path + query.
-  Zone-wide "Always Use HTTPS" is off on purpose: t2 still serves plain-HTTP things (mail autoconfig).
+- Plain `http://`: the zone's redirect rule `website_http_to_https` (phase `http_request_dynamic_redirect`,
+  ruleset `f28d81318118490a8691be0a3c0190cf`) sends `http://` on these two hosts straight to
+  `https://www.time-4-action.com` + path + query (one hop instead of two). Every other host is covered by
+  "Always Use HTTPS" (Edge proxy above).
 
 ## Ops tools (`pghero/` → `/srv/pghero`, `backrest/` → `/srv/backrest`)
 

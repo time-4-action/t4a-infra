@@ -54,9 +54,9 @@ Docker's published ports are blocked from outside by `t4a-docker-ports.service` 
 |---|---|---|---|
 | recharge-hub (web, worker, migrate) + `recharge-hub-postgres-1` (Postgres 16) | 3192, 5432 (local) | `recharge-hub.` | Postgres data in `recharge-hub/data/postgres` |
 | recharge-si (partners integration API) | 4545 | `recharge-sources.` | Uses MongoDB |
-| t4a-partner-portal-api | 3001 | `api.`, `export.` | `export/api/data` |
-| t4a-partner-portal-ui | 3002 | `b2b.` | `.env`: Gmail app password, Auth0 |
-| t4a-admin | 3005 | `admin.` | `.env.local`: Auth0, Mongo, S3, Metakocka |
+| t4a-partner-portal-api | 3001 | `api.` | `export/api/data` |
+| t4a-partner-portal-ui (Patrik Partner Portal) | 3002 | `export.` | `.env`: Gmail app password, Auth0 |
+| t4a-admin (PATRIK Business Platform) | 3005 | `admin.`, `b2b.` (the same app; `b2b.` is its `/portal`, the B2B customer portal) | `.env.local`: Auth0, Mongo, S3, Metakocka |
 | t4a-chat-ui | 3003 (host network) | `chat.` | `.env.local`: Anthropic, ElevenLabs, Deepgram, Google, Auth0. Image is `:latest` |
 | t4a-mk-automation | 3000 | `mkauto.` | 737 MB in its dir; image has no tag. A copy of `.env` is in `time-4-action/patrik/` |
 | t4a-mcp + t4a-chromadb | 8000, 8001 (local) | `mcp.` | `mcp/chroma_db`, `bm25_indexes`, `uploads` (80 MB) |
@@ -71,10 +71,12 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
   176.76.102.199, 87.119.132.30, 176.76.130.2 and 87.119.143.210, and drops 92.118.39.57; the last outside
   connection in the log was 2026-09-22. Databases: `t4a` (admin, chat, mcp, partner-portal-api), `recharge`
   (recharge-si). `patrik` (warranty form) was dropped on 2026-11-04. t4a has its own Mongo now (`servers/t4a/README.md`, "MongoDB").
-- **PHP-FPM**: default pool PHP 8.5 (`www.sock`) serves both WordPress sites. A PHP 8.2 `patrik-web` pool (`php82-php-fpm`)
-  runs but no vhost uses it.
-- **autodiscover.service**: Node app in `/mnt/vdc/www/autodiscover-server`, 127.0.0.1:8443, with `/mnt/vdc/www/mail/config-v1.1.xml`
-  (autoconfig). Served on `autodiscover.` and `autoconfig.time-4-action.com`. Mail itself is not on t2
+- **PHP-FPM**: default pool PHP 8.5 (`www.sock`) serves both WordPress sites. The PHP 8.2 `patrik-web` pool (`php82-php-fpm`),
+  which no vhost used, was stopped and disabled on 2026-11-06.
+- **autodiscover / autoconfig**: deleted on 2026-11-06 (decided by Grega). This was a Node app (`autodiscover.service`,
+  `/mnt/vdc/www/autodiscover-server`) plus `/mnt/vdc/www/mail/config-v1.1.xml` on `autodiscover.` and
+  `autoconfig.time-4-action.com`. The unit, vhost and a tarball of the files are in `/root/nginx-before-2026-11-06/`.
+  There were no DNS records of their own (the wildcard served them). Mail itself is not on t2
   (MX of time-4-action.com is Google, checked 2026-11-06; etiam.si is Google; the-chase-project.com is STRATO).
 - **certbot**: root cron 03:00 with Cloudflare DNS credentials in `/data/certbot/credentials/` (two accounts: `cloudflare.ini`,
   `cloudflare-t4a.ini`). Wildcard cert `etiam.si`, `*.etiam.si`, `*.t4a.etiam.si` valid to 2027-01-12. nginx redirects
@@ -114,9 +116,15 @@ copies here still run until the vhosts are disabled: [`wordpress-cutover.md`](wo
 
 ### Leftovers
 
-`/data/stack/apps/mail-migration` (May 2026 imapsync tool, mailbox list, may hold credentials: archive, do not copy blindly),
 `/home/almalinux` (`Mail/`, `cleanup.sh`, `docker-migration-2026-04-24.md`), `/data/log-archive`.
-`/data` is 81 % full (4 GB free), so do not stage dumps there.
+
+Cleaned up on 2026-11-06: `/data/stack/apps/mail-migration` (May 2026 imapsync tool; its files, possibly holding mailbox
+credentials, were world-readable), the Docker images no container uses (`docker image prune -a`; the app images are tagged
+by commit and can be pulled again from ghcr), an empty anonymous volume and a stray vim swap file in `nginx/snippets`.
+`/data` went from 92 % to 67 % full (6.7 GB free). Still, do not stage large dumps there.
+
+Hostnames on t2 with no vhost of their own (anything the `*.time-4-action.com` wildcard sends, such as `status.`,
+`monitor.` and `autodiscover.`) fall through to nginx's first `server` block on 443. That goes away when t2 is retired.
 
 ## Moving to t4a
 
@@ -130,7 +138,6 @@ The warranty form's cutover, step by step with data checks and rollback: [`warra
    [`wordpress-cutover.md`](wordpress-cutover.md).
 4. **TLS**: both origin certs (`patrik-international.com`, `the-chase-project.com`) are on t4a.
 5. **Apps**: bring up each app on t4a behind Traefik and add its URL to `servers/t4a/monitoring/targets/sites.yml`.
-   Move autodiscover/autoconfig, or retire them.
 6. **Cutover**: lower DNS TTLs a day ahead, then repoint the A records (proxied) to t4a, site by site. Do not touch MX.
-   Decide what happens to the `etiam.si` wildcard redirects and the certbot job.
+   Decide what happens to the `etiam.si` wildcard redirects and the certbot job. (Autodiscover/autoconfig: deleted.)
 7. **After**: take a final backup on t2, stop (do not delete) services, keep t2 and its restic repo for a few weeks.
