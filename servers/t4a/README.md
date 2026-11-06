@@ -95,7 +95,7 @@ form's `patrik` moved on to Postgres, database `patrik-warranty`, and was droppe
 | Database | Apps | Size on t2 (2026-11-02) |
 |---|---|---|
 | `t4a` | t4a-admin, t4a-chat-ui, t4a-mcp, t4a-partner-portal-api (shared, so they move together) | 34 collections, 31k documents |
-| `recharge` | recharge-si | 3 collections, 5.3k documents |
+| `recharge` | recharge-si (**moved here 2026-11-06**: final copy at the cutover, counts matched; user `recharge-si`) | 3 collections, 5.3k documents |
 
 No published port: apps join the external `mongo`
 network and connect to `mongo:27017`. Each app has its own user with `readWrite` on its own
@@ -195,9 +195,15 @@ Each host has its own proxied CNAME → `production.time-4-action.com`, overridi
 | patrik-warranty-form | `patrik-international.com`, `www.` | `/srv/patrik-warranty` | 4000 | Postgres | 2026-11-03 |
 | t4a-partner-portal-ui | `export.time-4-action.com` | `/srv/export-ui` | 3002 | none (`.env` only; calls `api.`, still on t2) | 2026-11-06 |
 | t4a-mk-automation | `mkauto.time-4-action.com` | `/srv/mk-automation` | 3000 | `data/`: `patrik.db` (SQLite), `public/` (~700 MB of sync files), `cron.json`, `.env` | 2026-11-06 |
+| recharge-partners-integration-api (recharge-si) | `recharge-sources.time-4-action.com` | `/srv/recharge-si` | 4545 | MongoDB `recharge` (user `recharge-si`): run history and the latest feed per source | 2026-11-06 |
+| recharge-hub (web, worker, migrate) | `recharge-hub.time-4-action.com` | `/srv/recharge-hub` | 3192 | Postgres `recharge-hub` on the shared Postgres 18 (schemas `public` and `pgboss`, ~2.5 GB); `data/claude-pool` (empty, as on t2) | 2026-11-06 |
 
 mk-automation runs the MetaKocka syncs (T4A → CREAGLOBE) on its own schedule (`data/cron.json`, every 15 min). Only one
-copy may ever run: the t2 container is stopped, so never `docker compose start` it while t4a's runs. It ignores
+copy may ever run: the t2 container is stopped, so never `docker compose start` it while t4a's runs. The same goes for
+recharge-si (hourly partner pulls at :00, Europe/Ljubljana, written to MongoDB) and recharge-hub's worker (MetaKocka and
+Shopify jobs every few minutes, pg-boss queue in its database). recharge-hub's database came over with `pg_dump -Fc` and
+`pg_restore --no-owner --role=recharge-hub` into a freshly made database; `--clean` fails on pg-boss's partitioned tables.
+PgHero (`pghero/pghero.yml`) lists every app database: `recharge-hub`, `patrik-warranty`, `agent`, plus `postgres`. It ignores
 SIGTERM, so `docker compose stop` takes 10 s and kills it; stop it between syncs (:00/:15/:30/:45 take a few seconds).
 `/srv` is in the nightly restic backup, so `patrik.db` is too.
 
