@@ -6,17 +6,17 @@
 - targets: [https://export.time-4-action.com/healthz]
   labels: { name: Export portal UI, group: time-4-action, host: hetzner, module: http_2xx }
 - targets: [https://api.time-4-action.com/api/export/healthz]
-  labels: { name: Export portal API, group: time-4-action, host: t2, module: http_2xx }
+  labels: { name: Export portal API, group: time-4-action, host: hetzner, module: http_2xx }
 - targets: [https://mkauto.time-4-action.com/healthz]
   labels: { name: MetaKocka automation, group: time-4-action, host: hetzner, module: http_2xx }
 - targets: [https://admin.time-4-action.com/]
-  labels: { name: T4A admin, group: time-4-action, host: t2, module: http_login }
+  labels: { name: T4A admin, group: time-4-action, host: hetzner, module: http_login }
 - targets: [https://chat.time-4-action.com/]
-  labels: { name: T4A chat, group: time-4-action, host: t2, module: http_login }
+  labels: { name: T4A chat, group: time-4-action, host: hetzner, module: http_login }
 - targets: [https://mcp.time-4-action.com/health]
-  labels: { name: T4A MCP, group: time-4-action, host: t2, module: http_2xx }
+  labels: { name: T4A MCP, group: time-4-action, host: hetzner, module: http_2xx }
 - targets: [https://b2b.time-4-action.com/]
-  labels: { name: B2B, group: time-4-action, host: t2, module: http_2xx }
+  labels: { name: B2B, group: time-4-action, host: hetzner, module: http_2xx }
 - targets: [https://www.time-4-action.com/]
   labels: { name: time-4-action.com, group: time-4-action, host: hetzner, module: http_2xx }
 - targets: [https://maintenance.time-4-action.com/banner.json]

@@ -94,7 +94,7 @@ form's `patrik` moved on to Postgres, database `patrik-warranty`, and was droppe
 
 | Database | Apps | Size on t2 (2026-11-02) |
 |---|---|---|
-| `t4a` | t4a-admin, t4a-chat-ui, t4a-mcp, t4a-partner-portal-api (shared, so they move together) | 34 collections, 31k documents |
+| `t4a` | t4a-admin, t4a-chat-ui, t4a-mcp, t4a-partner-portal-api (**moved here 2026-11-06**, all four at once: 34 collections, counts matched; users `t4a-admin`, `t4a-chat`, `t4a-mcp`, `export-api`) | 34 collections, 31k documents |
 | `recharge` | recharge-si (**moved here 2026-11-06**: final copy at the cutover, counts matched; user `recharge-si`) | 3 collections, 5.3k documents |
 
 No published port: apps join the external `mongo`
@@ -186,7 +186,9 @@ Each one deploys from its GitHub repo over SSH as `deploy`. The repo's `producti
 `PROD_DEPLOY_HOST` (`77.42.42.60`), `PROD_DEPLOY_SSH_KEY` (one key per repo, the public half in
 `/home/deploy/.ssh/authorized_keys`), `PROD_DEPLOY_FINGERPRINT` and `DEPLOY_DIR`. The fingerprint must be t4a's
 **ECDSA** host key, `SHA256:2wkXWs0QETKFiXKXbxbJRASeNd9I6zigPKVQGBtwfTk`: appleboy/ssh-action's Go client picks ECDSA, and
-the Ed25519 one fails with "host key fingerprint mismatch". Each app's compose file is `deploy/docker-compose.t4a.yml` in
+the Ed25519 one fails with "host key fingerprint mismatch". Two deploys at the same moment can fail at
+`docker compose pull` ("unauthorized"): every job logs in to GHCR as `deploy` in the same `~/.docker/config.json` and
+logs out on exit, so one job's logout breaks the other's pull. Nothing changes on the server; re-run the failed job. Each app's compose file is `deploy/docker-compose.t4a.yml` in
 its repo, copied by hand. It publishes a loopback port for the deploy's health check, and Traefik routes by host.
 Each host has its own proxied CNAME → `production.time-4-action.com`, overriding the `*` wildcard (still t2).
 
@@ -197,10 +199,14 @@ Each host has its own proxied CNAME → `production.time-4-action.com`, overridi
 | t4a-mk-automation | `mkauto.time-4-action.com` | `/srv/mk-automation` | 3000 | `data/`: `patrik.db` (SQLite), `public/` (~700 MB of sync files), `cron.json`, `.env` | 2026-11-06 |
 | recharge-partners-integration-api (recharge-si) | `recharge-sources.time-4-action.com` | `/srv/recharge-si` | 4545 | MongoDB `recharge` (user `recharge-si`): run history and the latest feed per source | 2026-11-06 |
 | recharge-hub (web, worker, migrate) | `recharge-hub.time-4-action.com` | `/srv/recharge-hub` | 3192 | Postgres `recharge-hub` on the shared Postgres 18 (schemas `public` and `pgboss`, ~2.5 GB); `data/claude-pool` (empty, as on t2) | 2026-11-06 |
+| t4a-partner-portal-api | `api.time-4-action.com` (only `/api/`) | `/srv/export-api` | 3001 | MongoDB `t4a` (user `export-api`); `data/` (`.env`, `pnv/`). CORS from the `api-cors` middleware (the app sets none) | 2026-11-06 |
+| t4a-admin | `admin.time-4-action.com`, `b2b.time-4-action.com` | `/srv/admin` | 3005 | MongoDB `t4a` (user `t4a-admin`) | 2026-11-06 |
+| t4a-chat-ui | `chat.time-4-action.com` | `/srv/chat` | 3003 | MongoDB `t4a` (user `t4a-chat`). Still the old Docker Hub image `time4action/t4a-chat-ui:latest`; the next merge to its `main` is the first CI release | 2026-11-06 |
+| t4a-mcp + chromadb | `mcp.time-4-action.com` | `/srv/mcp` | 8000 | MongoDB `t4a` (user `t4a-mcp`); `chroma_db/` (ChromaDB 0.6.3, no published port), `uploads/`, `bm25_indexes/` | 2026-11-06 |
 
 mk-automation runs the MetaKocka syncs (T4A → CREAGLOBE) on its own schedule (`data/cron.json`, every 15 min). Only one
 copy may ever run: the t2 container is stopped, so never `docker compose start` it while t4a's runs. The same goes for
-recharge-si (hourly partner pulls at :00, Europe/Ljubljana, written to MongoDB) and recharge-hub's worker (MetaKocka and
+recharge-si (hourly partner pulls at :00, Europe/Ljubljana, written to MongoDB), t4a-mcp (its reindex scheduler) and recharge-hub's worker (MetaKocka and
 Shopify jobs every few minutes, pg-boss queue in its database). recharge-hub's database came over with `pg_dump -Fc` and
 `pg_restore --no-owner --role=recharge-hub` into a freshly made database; `--clean` fails on pg-boss's partitioned tables.
 PgHero (`pghero/pghero.yml`) lists every app database: `recharge-hub`, `patrik-warranty`, `agent`, plus `postgres`. It ignores
