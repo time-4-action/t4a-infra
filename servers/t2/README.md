@@ -82,7 +82,9 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
   `cloudflare-t4a.ini`). Wildcard cert `etiam.si`, `*.etiam.si`, `*.t4a.etiam.si` valid to 2027-01-12. nginx redirects
   `*.t4a.etiam.si` to https and `*.*.etiam.si` to `export.time-4-action.com`. The `the-chase-project` cert expired 2026-07-15 and is unused.
 - **Backups**: restic to the Storage Box (`restic/t4a-t2`, never touch it), daily 03:00: tags `mariadb`, `wordpress`
-  (`/mnt/vdc/www/t4a`), `configs`, `hub-postgres`, `mongodb`. Keep 7 daily, 4 weekly, 6 monthly.
+  (`/mnt/vdc/www/t4a`), `configs`, `mongodb`. Keep 7 daily, 4 weekly, 6 monthly. `hub-postgres` stopped on 2026-11-06
+  (recharge-hub moved to t4a): `HUB_POSTGRES_CONTAINER` is commented out in `/etc/t4a-backup.env` (old file:
+  `/etc/t4a-backup.env.bak-20261106`), and `t4a-backup-metrics` no longer reports it. Its old snapshots stay in the repo.
 - Static site `time-4-action.com` / `www`: one `index.html` in `/mnt/vdc/www/t4a/time-4-action`. Moved to t4a on
   2026-11-06 (`servers/t4a/README.md`, "Website"). The copy and its server blocks in `conf.d/time-4-action.com.conf`
   stay on t2 for rollback; they get no traffic.

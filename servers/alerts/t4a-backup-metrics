@@ -8,8 +8,9 @@ import json, os, subprocess, sys, tempfile
 from datetime import datetime
 
 OUT = "/var/lib/t4a-metrics/backups.prom"
+# hub-postgres is gone: recharge-hub moved to t4a on 2026-11-06 and its database is in t4a's Postgres
+# (pgBackRest). Its old snapshots stay in restic/t4a-t2.
 T2_RESTIC_TAGS = {
-    "hub-postgres": "Recharge Hub database",
     "mongodb": "MongoDB (portal, admin, chat, warranty)",
     "mariadb": "MariaDB (WordPress databases)",
     "wordpress": "WordPress files",
