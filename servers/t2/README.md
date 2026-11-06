@@ -54,12 +54,12 @@ Docker's published ports are blocked from outside by `t4a-docker-ports.service` 
 |---|---|---|---|
 | recharge-hub (web, worker, migrate) + `recharge-hub-postgres-1` (Postgres 16) | 3192, 5432 (local) | `recharge-hub.` | **Moved to t4a 2026-11-06** (`servers/t4a/README.md`, "Apps"), database into t4a's shared Postgres. All four containers stopped here, not removed; `data/postgres` kept as of 14:07 UTC |
 | recharge-si (partners integration API) | 4545 | `recharge-sources.` | **Moved to t4a 2026-11-06** (`servers/t4a/README.md`, "Apps"); its `recharge` database too. Container stopped here, not removed |
-| t4a-partner-portal-api | 3001 | `api.` | `export/api/data` |
+| t4a-partner-portal-api | 3001 | `api.` | **Moved to t4a 2026-11-06** with the `t4a` database (`servers/t4a/README.md`, "Apps"). Stopped here, not removed |
 | t4a-partner-portal-ui (Patrik Partner Portal) | 3002 | `export.` | **Moved to t4a 2026-11-06** (`servers/t4a/README.md`, "Apps"). Container stopped here, not removed |
-| t4a-admin (PATRIK Business Platform) | 3005 | `admin.`, `b2b.` (the same app; `b2b.` is its `/portal`, the B2B customer portal) | `.env.local`: Auth0, Mongo, S3, Metakocka |
-| t4a-chat-ui | 3003 (host network) | `chat.` | `.env.local`: Anthropic, ElevenLabs, Deepgram, Google, Auth0. Image is `:latest` |
+| t4a-admin (PATRIK Business Platform) | 3005 | `admin.`, `b2b.` (the same app; `b2b.` is its `/portal`, the B2B customer portal) | **Moved to t4a 2026-11-06** with the `t4a` database (`servers/t4a/README.md`, "Apps"). Stopped here, not removed |
+| t4a-chat-ui | 3003 (host network) | `chat.` | **Moved to t4a 2026-11-06** with the `t4a` database (`servers/t4a/README.md`, "Apps"). Stopped here, not removed |
 | t4a-mk-automation | 3000 | `mkauto.` | **Moved to t4a 2026-11-06** (`servers/t4a/README.md`, "Apps"). Container stopped here, not removed; its data stays as of 12:51 UTC |
-| t4a-mcp + t4a-chromadb | 8000, 8001 (local) | `mcp.` | `mcp/chroma_db`, `bm25_indexes`, `uploads` (80 MB) |
+| t4a-mcp + t4a-chromadb | 8000, 8001 (local) | `mcp.` | **Moved to t4a 2026-11-06** with the `t4a` database (`servers/t4a/README.md`, "Apps"). Stopped here, not removed |
 | Alloy | none | none | See Monitoring above |
 
 Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a secure channel, never through git.
