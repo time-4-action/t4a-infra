@@ -24,7 +24,7 @@ Every night the snapshot was still made, but `forget --prune` failed on the lock
 exited 1 (posted to Slack each night) while the summary said "all OK". `t4a-backup` now runs
 `restic unlock` first (only removes locks whose process is gone) and `--retry-lock 30m`.
 If a whole server is down, nothing posts at all: that needs an outside check
-(Uptime Kuma push monitors, `/etc/t4a-heartbeat.env` in `servers/t4a/README.md`).
+(push monitors such as healthchecks.io, `/etc/t4a-heartbeat.env` in `servers/t4a/README.md`; not set up yet).
 
 ## Files
 

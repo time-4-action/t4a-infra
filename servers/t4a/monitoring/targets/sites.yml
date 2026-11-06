@@ -18,7 +18,7 @@
 - targets: [https://b2b.time-4-action.com/]
   labels: { name: B2B, group: time-4-action, host: t2, module: http_2xx }
 - targets: [https://www.time-4-action.com/]
-  labels: { name: time-4-action.com, group: time-4-action, host: t2, module: http_2xx }
+  labels: { name: time-4-action.com, group: time-4-action, host: hetzner, module: http_2xx }
 - targets: [https://maintenance.time-4-action.com/banner.json]
   labels: { name: Maintenance banner, group: time-4-action, host: hetzner, module: http_2xx }
 

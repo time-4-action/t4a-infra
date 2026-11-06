@@ -38,7 +38,9 @@ ssh t4a-t2 'sudo install -m 644 /tmp/compose.yml /tmp/config.alloy /data/stack/m
 ```
 If it stops, Grafana alerts "Server stopped reporting" for t2 within about 7 minutes.
 
-Beszel and Uptime Kuma still run here; Grafana covers what they show, so they can go when t2 is retired.
+Beszel and Uptime Kuma were deleted on 2026-11-06 (containers, images, volumes `uptime-kuma`, `beszel_data`,
+`beszel_agent_data`, the `monitor.` vhost and the `status.` block). Grafana covers what they showed. Copies of the
+two nginx files from before are in `/root/nginx-before-2026-11-06/`.
 
 ## Inventory (checked 2026-10-29)
 
@@ -58,7 +60,6 @@ Docker's published ports are blocked from outside by `t4a-docker-ports.service` 
 | t4a-chat-ui | 3003 (host network) | `chat.` | `.env.local`: Anthropic, ElevenLabs, Deepgram, Google, Auth0. Image is `:latest` |
 | t4a-mk-automation | 3000 | `mkauto.` | 737 MB in its dir; image has no tag. A copy of `.env` is in `time-4-action/patrik/` |
 | t4a-mcp + t4a-chromadb | 8000, 8001 (local) | `mcp.` | `mcp/chroma_db`, `bm25_indexes`, `uploads` (80 MB) |
-| Uptime Kuma, Beszel | 3333, 8090 | `status.`, `monitor.` | Volume `uptime-kuma` 820 MB. Optional, Grafana replaces them |
 | Alloy | none | none | See Monitoring above |
 
 Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a secure channel, never through git.
@@ -74,13 +75,15 @@ Every `.env` / `.env.local` is in the restic `configs` backup. Copy them over a 
   runs but no vhost uses it.
 - **autodiscover.service**: Node app in `/mnt/vdc/www/autodiscover-server`, 127.0.0.1:8443, with `/mnt/vdc/www/mail/config-v1.1.xml`
   (autoconfig). Served on `autodiscover.` and `autoconfig.time-4-action.com`. Mail itself is not on t2
-  (MX of time-4-action.com is `mx1.t-2.si`; etiam.si is Google; the-chase-project.com is STRATO).
+  (MX of time-4-action.com is Google, checked 2026-11-06; etiam.si is Google; the-chase-project.com is STRATO).
 - **certbot**: root cron 03:00 with Cloudflare DNS credentials in `/data/certbot/credentials/` (two accounts: `cloudflare.ini`,
   `cloudflare-t4a.ini`). Wildcard cert `etiam.si`, `*.etiam.si`, `*.t4a.etiam.si` valid to 2027-01-12. nginx redirects
   `*.t4a.etiam.si` to https and `*.*.etiam.si` to `export.time-4-action.com`. The `the-chase-project` cert expired 2026-07-15 and is unused.
 - **Backups**: restic to the Storage Box (`restic/t4a-t2`, never touch it), daily 03:00: tags `mariadb`, `wordpress`
   (`/mnt/vdc/www/t4a`), `configs`, `hub-postgres`, `mongodb`. Keep 7 daily, 4 weekly, 6 monthly.
-- Static site `time-4-action.com` / `www`: one `index.html` in `/mnt/vdc/www/t4a/time-4-action`.
+- Static site `time-4-action.com` / `www`: one `index.html` in `/mnt/vdc/www/t4a/time-4-action`. Moved to t4a on
+  2026-11-06 (`servers/t4a/README.md`, "Website"). The copy and its server blocks in `conf.d/time-4-action.com.conf`
+  stay on t2 for rollback; they get no traffic.
 
 ### WordPress (not Multisite, three installs in `/mnt/vdc/www/t4a/`)
 
