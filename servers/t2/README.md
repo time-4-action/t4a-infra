@@ -15,6 +15,14 @@ What was done, so the VM can be deleted at the provider:
   t4a works (tested: listing and two file restores from `d6f80d24`):
   `restic -r sftp:storagebox:restic/t4a-t2 --password-file /root/.restic-password-t4a-t2 snapshots`.
   **Keep a copy in the password manager too**, like t4a's own `/root/.restic-password`.
+  A second snapshot `2b222cdb` (tag `final-2026-11-06-extra`, 38 MiB) has what the first missed: `/data/patrik-products`
+  (an old app from January 2026, not running: `.env`, `data/`, `pnv/`, `tris/`), `/data/patrik-ui` (empty), `/opt`,
+  `/var/spool/cron`, `/usr/local/bin` and `/etc/systemd/system`. Not kept: Docker images, `/var/log`, the OS.
+- **Who still used it** (checked before deleting): GitHub Actions deploys as `deploy` stopped at 09:43 UTC on
+  2026-11-06, before the last moves; every deploying repo now targets t4a. **t4a-ops** still deploys t2's backup
+  script to t2 (org secret `PROD_DEPLOY_HOST`), so its CI deploy will fail once t2 is gone: it is obsolete and can
+  be archived. SSH as `almalinux` came from the admin machine (188.34.183.81) and from 95.143.154.75 (2026-10-24/25,
+  2026-11-05), presumably Grega.
 - **Stopped and disabled** (not deleted): every container (apps, `monitoring-alloy`), nginx, MongoDB, MariaDB,
   PHP-FPM (both pools), autodiscover (deleted earlier the same day). Only `sshd` (and rpcbind) still listen.
 - **Timers and crons off**: `t4a-backup.timer` and `t4a-backup-maintenance.timer` disabled (so nothing prunes the
