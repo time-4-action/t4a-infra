@@ -14,7 +14,8 @@ database is at IONOS). Its files stay on t2 until t2 is retired.
 | 1. Sites created on t4a, files and databases copied, checked | done 2026-11-05 |
 | 2. Final sync (only if something changed on t2 since step 1) | not needed: no file or content-table change on t2 |
 | 3. DNS to t4a | done 2026-11-05 09:32 (the-chase-project) and 09:34 UTC (patrik-web) |
-| 4. After: monitoring done; WPML licence, Chase updates, t2 vhosts | open |
+| 4. After: monitoring, WPML licence, Chase updates | done 2026-11-06 |
+| 4. After: disable the t2 vhosts | done 2026-11-06 |
 
 ## 1. Copy (done 2026-11-05)
 
@@ -104,9 +105,27 @@ After a rollback, anything written on t4a in the meantime (comments, edits) is o
 ## 4. After
 
 - Both URLs are in `servers/t4a/monitoring/targets/sites.yml` (`host: hetzner`), probes up (done).
-- `patrik-web`: check WPML still shows its licence as registered (it is tied to the domain, which
-  does not change).
-- `the-chase-project`: update core (6.7.2) and plugins from wp-admin; the STRATO leftovers
-  (`strato-assistant`, mu-plugin `automation-by-installatron.php`) can be removed.
-- On t2, after a few days without problems: disable the two nginx vhosts and `systemctl reload nginx`
-  (do not delete the files; t2's restic backup keeps running until t2 is retired).
+- `patrik-web` WPML licence (checked 2026-11-06 with WP-CLI, `wp_installer_settings`): the `wpml`
+  repository has its key, status 1 (active), no expiry date (lifetime). The domain did not change, so
+  nothing to re-register. WPML itself is 4.2.5 (2019) and logs PHP 8.5 deprecation warnings; updating
+  it needs a download from the WPML account, so it is not done here.
+- `the-chase-project` (done 2026-11-06, with WP-CLI):
+  - Before: DB dump and `html/` tarball in `/srv/wordpress/the-chase-project/pre-update-2026-11-06/`
+    (root only; delete once the site has run a few weeks without problems).
+  - Core 6.7.2 → 7.1.4 (`de_DE`), checksums verified, DB already current, translations updated.
+    The plugins and theme had no updates.
+  - Removed the STRATO leftovers: plugin `strato-assistant` (plus its 2 options and 2 cron events)
+    and mu-plugin `automation-by-installatron.php`, which had switched off WordPress auto-updates.
+    Also removed the `WP_AUTO_UPDATE_CORE true` line Installatron had appended to `wp-config.php`,
+    so the site now gets the default (automatic minor and security releases, no majors), the same as
+    `patrik-web`.
+  - Checked: all sitemap URLs, home, feed and login give the same status and title as before (the
+    login title's dash changed with 7.x); `/wp-admin/` 302; no fatals or 500s in the container log.
+  - Rollback: `docker compose down`, restore `html/` from the tarball and the dump into
+    `wp_the_chase_project`, `docker compose up -d`.
+- On t2, the two nginx vhosts are disabled (2026-11-06, ~12:05 UTC). Both access logs had no requests
+  that day, so nothing still reached t2. They were renamed to
+  `/etc/nginx/conf.d/{the-chase-project.com,patrik-web.time-4-action.com}.conf.disabled-2026-11-06`,
+  then `nginx -t` and `systemctl reload nginx`. The files, the databases and PHP-FPM are still on t2,
+  and t2's restic backup keeps running until t2 is retired. To bring them back, rename them to `.conf`
+  and reload. After the change, both sites (on t4a) and the t2 apps answered as before.
