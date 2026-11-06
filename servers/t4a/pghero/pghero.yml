@@ -1,9 +1,17 @@
 # One entry per app database. new-app-db.sh grants pghero CONNECT and adds pg_stat_statements;
 # add the entry here by hand, then `docker compose restart` in /srv/pghero.
+# The pghero role can't read table data, and EXPLAIN shouldn't be a way around that: explain: false.
 databases:
-  # No app database on the shared Postgres yet, so PgHero watches the maintenance database
-  # (connections, settings). Replace this entry with the first app's database.
+  recharge-hub:
+    url: postgres://pghero:<%= ENV["PGHERO_DB_PASSWORD"] %>@postgres:5432/recharge-hub
+    explain: false
+  patrik-warranty:
+    url: postgres://pghero:<%= ENV["PGHERO_DB_PASSWORD"] %>@postgres:5432/patrik-warranty
+    explain: false
+  agent:
+    url: postgres://pghero:<%= ENV["PGHERO_DB_PASSWORD"] %>@postgres:5432/agent
+    explain: false
+  # The maintenance database: server-wide connections and settings.
   postgres:
     url: postgres://pghero:<%= ENV["PGHERO_DB_PASSWORD"] %>@postgres:5432/postgres
-    # The pghero role can't read table data, and EXPLAIN shouldn't be a way around that.
     explain: false
