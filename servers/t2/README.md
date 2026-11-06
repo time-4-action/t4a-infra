@@ -1,5 +1,44 @@
 # t2 (T-2, `194.28.111.245`, AlmaLinux 9)
 
+## Retired on 2026-11-06: ready to delete
+
+Everything that ran here moved to t4a (`servers/t4a/README.md`, "Apps moved from t2"), and t2 serves nothing.
+What was done, so the VM can be deleted at the provider:
+
+- **Final backup** to the Storage Box (`restic/t4a-t2`, never touch it): the normal nightly set at 15:07 UTC
+  (`mariadb`, `wordpress`, `mongodb`, `configs`), plus snapshot `d6f80d24`, tag `final-2026-11-06` (12.1 GiB):
+  `/etc`, `/root`, `/home`, `/data/stack` (every app folder, including recharge-hub's stopped Postgres data and
+  mk-automation's `patrik.db`), `/data/log-archive`, `/data/certbot`, `/data/mongo`, `/mnt/vdc/www` (all three
+  WordPress installs, including the dropped `patrik-test`) and `/mnt/vdc/mysql`. Spot-checked with `restic ls`.
+  Docker images were not kept; they are in GHCR / Docker Hub. **The repository's password was only on t2**
+  (it differs from t4a's), so it was copied to t4a as `/root/.restic-password-t4a-t2` (mode 600). Reading it from
+  t4a works (tested: listing and two file restores from `d6f80d24`):
+  `restic -r sftp:storagebox:restic/t4a-t2 --password-file /root/.restic-password-t4a-t2 snapshots`.
+  **Keep a copy in the password manager too**, like t4a's own `/root/.restic-password`.
+- **Stopped and disabled** (not deleted): every container (apps, `monitoring-alloy`), nginx, MongoDB, MariaDB,
+  PHP-FPM (both pools), autodiscover (deleted earlier the same day). Only `sshd` (and rpcbind) still listen.
+- **Timers and crons off**: `t4a-backup.timer` and `t4a-backup-maintenance.timer` disabled (so nothing prunes the
+  repo any more; its snapshots stay as they are), `/etc/cron.d/t4a-{backup-metrics,cleanup,daily}` moved to
+  `/root/cron.d-disabled-2026-11-06/`, root's certbot cron commented out (copy of the crontab in the same folder).
+- **DNS** (zone `time-4-action.com`): the `*` wildcard, `t2` and `prod` records deleted, so unknown subdomains no
+  longer resolve. Two hosts that t4a serves had no record of their own and only reached t2 through the wildcard
+  (502 for a while): `s3.` and `dev-warranty-assets.` now have proxied CNAMEs to `production.time-4-action.com`.
+  `patrikdiethelm.com` (a Cloudflare redirect rule to patrikinternational.com) now points at t4a instead of t2.
+  `t2-web` (89.212.89.4, an Apache that is **not** t2) stays: `1a-z.com`, `patrikwindsurf.com` and
+  `patrik-wingfoil.com` point at it.
+- **`etiam.si`** (DNS in another Cloudflare account): `*.t4a.etiam.si` → `t2.etiam.si` → this IP served only
+  redirects to `export.time-4-action.com`; the logs showed scanners and Googlebot, no users. Dropped; delete
+  `t2.etiam.si` and `*.t4a.etiam.si` in that account when convenient. Its Let's Encrypt cert (certbot here) goes with t2.
+- **Monitoring**: no site in `servers/t4a/monitoring/targets/sites.yml` is on t2; the "Server stopped reporting"
+  alert watches only t4a; the `t2` ingest login was revoked (its password in `ingest-auth.yml` replaced with a random
+  one; `/root/ingest-login` removed). The backup alerts use `noDataState: OK`, so t2's missing metrics don't fire.
+
+Still pointing at t2, outside this repo: the GitHub organization secrets `PROD_DEPLOY_*` (time-4-action and
+recharge-si). Every app repo overrides them on its `production` environment, so nothing deploys there; update or
+delete them with an org admin token when convenient. The `t4a-t2` SSH alias on the admin machine can go with the VM.
+
+The rest of this file is the inventory and plan from before the move, kept as history.
+
 Reached as `almalinux` with sudo: `ssh t4a-t2`. Its other configs live in time-4-action/t4a-ops
 (`/root/t4a-ops` on the server); alerts and the nightly cleanup are in `servers/alerts`.
 
