@@ -26,7 +26,7 @@
 - targets: [https://recharge-hub.time-4-action.com/healthz]
   labels: { name: Recharge Hub, group: recharge, host: t2, module: http_2xx }
 - targets: [https://recharge-sources.time-4-action.com/api/healthz]
-  labels: { name: Partners integration API, group: recharge, host: t2, module: http_2xx }
+  labels: { name: Partners integration API, group: recharge, host: hetzner, module: http_2xx }
 - targets: [https://recharge.si/]
   labels: { name: recharge.si shop, group: recharge, host: shopify, module: http_2xx }
 

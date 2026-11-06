@@ -53,7 +53,7 @@ Docker's published ports are blocked from outside by `t4a-docker-ports.service` 
 | App | Port | Host | State and notes |
 |---|---|---|---|
 | recharge-hub (web, worker, migrate) + `recharge-hub-postgres-1` (Postgres 16) | 3192, 5432 (local) | `recharge-hub.` | Postgres data in `recharge-hub/data/postgres` |
-| recharge-si (partners integration API) | 4545 | `recharge-sources.` | Uses MongoDB |
+| recharge-si (partners integration API) | 4545 | `recharge-sources.` | **Moved to t4a 2026-11-06** (`servers/t4a/README.md`, "Apps"); its `recharge` database too. Container stopped here, not removed |
 | t4a-partner-portal-api | 3001 | `api.` | `export/api/data` |
 | t4a-partner-portal-ui (Patrik Partner Portal) | 3002 | `export.` | **Moved to t4a 2026-11-06** (`servers/t4a/README.md`, "Apps"). Container stopped here, not removed |
 | t4a-admin (PATRIK Business Platform) | 3005 | `admin.`, `b2b.` (the same app; `b2b.` is its `/portal`, the B2B customer portal) | `.env.local`: Auth0, Mongo, S3, Metakocka |
