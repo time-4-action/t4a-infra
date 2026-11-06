@@ -180,6 +180,27 @@ Sites (moved from t2 and live here since 2026-11-05; DNS records and rollback in
 | `patrik-web` | `patrik-web.time-4-action.com` | `wp_patrik_web` (prefix `wp_`) |
 | `the-chase-project` | `www.the-chase-project.com`, `the-chase-project.com` | `wp_the_chase_project` (prefix `tgnh_`) |
 
+## Apps moved from t2 (deployed by their own repos)
+
+Each one deploys from its GitHub repo over SSH as `deploy`. The repo's `production` environment overrides
+`PROD_DEPLOY_HOST` (`77.42.42.60`), `PROD_DEPLOY_SSH_KEY` (one key per repo, the public half in
+`/home/deploy/.ssh/authorized_keys`), `PROD_DEPLOY_FINGERPRINT` and `DEPLOY_DIR`. The fingerprint must be t4a's
+**ECDSA** host key, `SHA256:2wkXWs0QETKFiXKXbxbJRASeNd9I6zigPKVQGBtwfTk`: appleboy/ssh-action's Go client picks ECDSA, and
+the Ed25519 one fails with "host key fingerprint mismatch". Each app's compose file is `deploy/docker-compose.t4a.yml` in
+its repo, copied by hand. It publishes a loopback port for the deploy's health check, and Traefik routes by host.
+Each host has its own proxied CNAME → `production.time-4-action.com`, overriding the `*` wildcard (still t2).
+
+| App | Host | Folder | Loopback port | Data | Since |
+|---|---|---|---|---|---|
+| patrik-warranty-form | `patrik-international.com`, `www.` | `/srv/patrik-warranty` | 4000 | Postgres | 2026-11-03 |
+| t4a-partner-portal-ui | `export.time-4-action.com` | `/srv/export-ui` | 3002 | none (`.env` only; calls `api.`, still on t2) | 2026-11-06 |
+| t4a-mk-automation | `mkauto.time-4-action.com` | `/srv/mk-automation` | 3000 | `data/`: `patrik.db` (SQLite), `public/` (~700 MB of sync files), `cron.json`, `.env` | 2026-11-06 |
+
+mk-automation runs the MetaKocka syncs (T4A → CREAGLOBE) on its own schedule (`data/cron.json`, every 15 min). Only one
+copy may ever run: the t2 container is stopped, so never `docker compose start` it while t4a's runs. It ignores
+SIGTERM, so `docker compose stop` takes 10 s and kills it; stop it between syncs (:00/:15/:30/:45 take a few seconds).
+`/srv` is in the nightly restic backup, so `patrik.db` is too.
+
 ## Website (`website/` → `/srv/website`)
 
 `time-4-action.com` and `www.time-4-action.com`: one static `index.html` (about 470 KB, everything inline), moved
