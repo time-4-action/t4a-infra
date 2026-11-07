@@ -5,16 +5,32 @@
 # Every app deploy pulls a new image tagged with its commit SHA and only prunes
 # untagged ones, so each deploy's image stayed on disk for good (on t2 in
 # October 2026, three 4 GB t4a-mcp images filled /data and a deploy failed).
-# Images newer than KEEP stay for a manual rollback; a deploy's own rollback
-# needs none of them, it goes back to the image the container is running.
-# Images used by any container, running or stopped, are never removed.
+# Only the KEEP_IMAGES newest tags of each repository stay, for a manual rollback;
+# a deploy's own rollback needs none of them, it goes back to the image the container
+# is running. (Until November 2026 everything from the last 48 h stayed, and ~35
+# t4a-agent deploys in a day left 46 images, about 11 GB, on t4a.)
+# Images used by any container, running or stopped, are never removed: `docker rmi`
+# without --force refuses them, so they stay even when older than the newest two.
 set -eu
-KEEP=48h
+KEEP_IMAGES=2
+KEEP_CACHE=48h
 
 echo "$(date '+%F %T') before: $(df -h --output=pcent,avail / /data 2>/dev/null | tail -n +2 | tr -s ' ' | paste -sd,)"
 
-docker image prune --all --force --filter "until=$KEEP" | tail -n 1
-docker builder prune --all --force --filter "until=$KEEP" | tail -n 1
+# Per repository, newest first; images after the first KEEP_IMAGES go. Some apps deploy by digest
+# (t4a-agent pulls repo@sha256:...), so their images have no tag but a repository: those are
+# removed by ID. Tagged ones are removed by repo:tag, which also works for an image with several tags.
+removed=0
+for ref in $(docker images --format '{{.CreatedAt}}\t{{.Repository}}\t{{.Tag}}\t{{.ID}}' \
+    | awk -F '\t' '$2 != "<none>"' | sort -r \
+    | awk -F '\t' -v keep="$KEEP_IMAGES" '
+        !(($2, $4) in seen) { seen[$2, $4] = 1; rank[$2, $4] = ++n[$2] }
+        rank[$2, $4] > keep { print ($3 == "<none>" ? $4 : $2 ":" $3) }' | awk '!d[$0]++'); do
+  if docker rmi "$ref" >/dev/null 2>&1; then removed=$((removed + 1)); fi
+done
+echo "Removed $removed old images (kept the newest $KEEP_IMAGES per repository and any in use)"
+docker image prune --force | tail -n 1
+docker builder prune --all --force --filter "until=$KEEP_CACHE" | tail -n 1
 journalctl --vacuum-size=200M 2>&1 | tail -n 1
 if command -v dnf >/dev/null; then dnf clean packages -q; else apt-get clean; fi
 
