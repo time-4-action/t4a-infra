@@ -301,11 +301,12 @@ Prometheus also scrapes: Traefik :8082, blackbox (targets/sites.yml), postgres-e
 | `blackbox` | Checks every URL in `targets/sites.yml` from here every 30 s. |
 | `postgres-exporter`, `mariadb-exporter`, `mongodb-exporter` | Database metrics, as the read-only users `metrics` (Postgres `pg_monitor`, MariaDB `PROCESS, BINLOG MONITOR, SLAVE MONITOR`, 3 connections each; MongoDB `clusterMonitor` and `read` on `local`). |
 
-Alerts (13 rules in `rules.yml`, all to `#t4a-server` through the "t4a server" Slack app,
+Alerts (14 rules in `rules.yml`, all to `#t4a-server` through the "t4a server" Slack app,
 `SLACK_BOT_TOKEN` from `/etc/t4a-slack.env`): site or API down 3 min, slow over 5 s, certificate
 under 14 days, over 5 % 5xx on an app, disk over 85 %, RAM under 10 %, CPU over 90 % for 15 min,
 a server stopped reporting, a container restarting, a scrape target down, a database down,
 a backup older than 26 h, a backup whose state can't be read for 2 h.
+And one on logs (Loki): any `[whatsapp] send failed` or `media upload failed` line from t4a-agent (Meta refused a message, for example "API access blocked") fires at once.
 Summaries are Go templates (`{{ $labels.name }}`); Grafana does not expand environment variables
 in rule files, so a `$` stays as it is.
 
