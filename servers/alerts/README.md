@@ -34,7 +34,7 @@ If a whole server is down, nothing posts at all: that needs an outside check
 | `t4a-run` | `/usr/local/bin/t4a-run <name> <cmd...>`: runs a cron job into `/var/log/<name>.log`, posts its last 15 lines if it fails, records the exit code in `/var/lib/t4a-run/<name>` | both |
 | `t4a-daily`, `t4a-daily.cron` | `/usr/local/bin/t4a-daily`, `/etc/cron.d/t4a-daily` | both |
 | `t4a-backup-metrics`, `t4a-backup-metrics.cron` | `/usr/local/bin/t4a-backup-metrics`, `/etc/cron.d/t4a-backup-metrics`: hourly at :50 writes each backup's time and size to `/var/lib/t4a-metrics/backups.prom` for Grafana (Backups on the Overview, "Backup missed" alert) | both |
-| `t4a-cleanup`, `t4a-cleanup.cron` | `/usr/local/bin/t4a-cleanup`, `/etc/cron.d/t4a-cleanup`: at 04:30 removes Docker images no container uses that are older than 48 h, build cache, journal over 200 MB and the package cache | both |
+| `t4a-cleanup`, `t4a-cleanup.cron` | `/usr/local/bin/t4a-cleanup`, `/etc/cron.d/t4a-cleanup`: at 04:30 removes Docker images no container uses except the 2 newest per repository, untagged images, build cache older than 48 h, journal over 200 MB and the package cache | both |
 | `t4a-unit-failed`, `t4a-alert@.service` | `/usr/local/bin/`, `/etc/systemd/system/` | t2 |
 | `on-failure.conf` | `/etc/systemd/system/t4a-backup.service.d/t4a-alert.conf` and the same for `t4a-backup-maintenance.service` | t2 |
 
