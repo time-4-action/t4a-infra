@@ -24,8 +24,10 @@ What was done, so the VM can be deleted at the provider:
   longer resolve. Two hosts that t4a serves had no record of their own and only reached t2 through the wildcard
   (502 for a while): `s3.` and `dev-warranty-assets.` now have proxied CNAMEs to `production.time-4-action.com`.
   `patrikdiethelm.com` (a Cloudflare redirect rule to patrikinternational.com) now points at t4a instead of t2.
-  `t2-web` (89.212.89.4, an Apache that is **not** t2) stays: `1a-z.com`, `patrikwindsurf.com` and
-  `patrik-wingfoil.com` point at it.
+  Later the same day (DNS clean-up): `1a-z.com`, `patrikwindsurf.com` and `patrik-wingfoil.com` only redirect to
+  patrikinternational.com through Cloudflare rules, so their records now point at `production.time-4-action.com` and
+  `t2-web` (89.212.89.4, an Apache that is **not** t2, still running) was deleted from DNS. `dev-warranty-assets.` was
+  deleted too (nothing used it), and `spf.t-2.si` was removed from time-4-action.com's SPF (mail is Google).
 - **`etiam.si`** (DNS in another Cloudflare account): `*.t4a.etiam.si` → `t2.etiam.si` → this IP served only
   redirects to `export.time-4-action.com`; the logs showed scanners and Googlebot, no users. Dropped; delete
   `t2.etiam.si` and `*.t4a.etiam.si` in that account when convenient. Its Let's Encrypt cert (certbot here) goes with t2.
