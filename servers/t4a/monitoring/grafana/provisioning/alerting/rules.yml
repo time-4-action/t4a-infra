@@ -144,6 +144,41 @@ groups:
     labels:
       severity: warning
     isPaused: false
+  - uid: whatsapp-failing
+    title: WhatsApp messages failing
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: loki
+      model:
+        refId: A
+        expr: sum(count_over_time({container=~"agent-agent-.*"} |~ `\[whatsapp\] (send|media upload) failed` [15m]))
+        queryType: instant
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    annotations:
+      summary: 't4a-agent: {{ $values.A.Value }} WhatsApp sends failed in 15 min (Meta API). See the agent logs in Grafana; "API access blocked" means Meta restricted the app or token.'
+    labels:
+      severity: critical
+    isPaused: false
   - uid: disk-full
     title: Disk almost full
     condition: C
