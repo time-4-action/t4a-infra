@@ -196,7 +196,7 @@ Each host has its own proxied CNAME → `production.time-4-action.com`, overridi
 |---|---|---|---|---|---|
 | patrik-warranty-form | `patrik-international.com`, `www.` | `/srv/patrik-warranty` | 4000 | Postgres | 2026-11-03 |
 | t4a-partner-portal-ui | `export.time-4-action.com` | `/srv/export-ui` | 3002 | none (`.env` only; calls `api.`, still on t2) | 2026-11-06 |
-| t4a-mk-automation | `mkauto.time-4-action.com` | `/srv/mk-automation` | 3000 | `data/`: `patrik.db` (SQLite), `public/` (~700 MB of sync files), `cron.json`, `.env` | 2026-11-06 |
+| t4a-mk-automation | `mkauto.time-4-action.com` | `/srv/mk-automation` | 3000 | Postgres `mk-automation` (since 2026-11-07, PR #33 there: 90k rows copied from SQLite, counts matched); `data/`: `public/` (~700 MB of sync files), `cron.json`, `.env`, and `patrik.db` (old SQLite, unused; `patrik.db.pre-postgres` backup) | 2026-11-06 |
 | recharge-partners-integration-api (recharge-si) | `recharge-sources.time-4-action.com` | `/srv/recharge-si` | 4545 | MongoDB `recharge` (user `recharge-si`): run history and the latest feed per source | 2026-11-06 |
 | recharge-hub (web, worker, migrate) | `recharge-hub.time-4-action.com` | `/srv/recharge-hub` | 3192 | Postgres `recharge-hub` on the shared Postgres 18 (schemas `public` and `pgboss`, ~2.5 GB); `data/claude-pool` (empty, as on t2) | 2026-11-06 |
 | t4a-partner-portal-api | `api.time-4-action.com` (only `/api/`) | `/srv/export-api` | 3001 | MongoDB `t4a` (user `export-api`); `data/` (`.env`, `pnv/`). CORS from the `api-cors` middleware (the app sets none) | 2026-11-06 |
@@ -209,7 +209,7 @@ copy may ever run: the t2 container is stopped, so never `docker compose start` 
 recharge-si (hourly partner pulls at :00, Europe/Ljubljana, written to MongoDB), t4a-mcp (its reindex scheduler) and recharge-hub's worker (MetaKocka and
 Shopify jobs every few minutes, pg-boss queue in its database). recharge-hub's database came over with `pg_dump -Fc` and
 `pg_restore --no-owner --role=recharge-hub` into a freshly made database; `--clean` fails on pg-boss's partitioned tables.
-PgHero (`pghero/pghero.yml`) lists every app database: `recharge-hub`, `patrik-warranty`, `agent`, plus `postgres`. It ignores
+PgHero (`pghero/pghero.yml`) lists every app database: `recharge-hub`, `patrik-warranty`, `agent`, `mk-automation`, plus `postgres`. It ignores
 SIGTERM, so `docker compose stop` takes 10 s and kills it; stop it between syncs (:00/:15/:30/:45 take a few seconds).
 `/srv` is in the nightly restic backup, so `patrik.db` is too.
 
