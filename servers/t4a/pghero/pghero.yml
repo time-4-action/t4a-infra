@@ -11,6 +11,9 @@ databases:
   agent:
     url: postgres://pghero:<%= ENV["PGHERO_DB_PASSWORD"] %>@postgres:5432/agent
     explain: false
+  mk-automation:
+    url: postgres://pghero:<%= ENV["PGHERO_DB_PASSWORD"] %>@postgres:5432/mk-automation
+    explain: false
   # The maintenance database: server-wide connections and settings.
   postgres:
     url: postgres://pghero:<%= ENV["PGHERO_DB_PASSWORD"] %>@postgres:5432/postgres
